@@ -55,7 +55,7 @@ func (e *AIStudioExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth,
 	reporter := newUsageReporter(ctx, e.Identifier(), req.Model, auth)
 	defer reporter.trackFailure(ctx, &err)
 
-	translatedReq, body, err := e.translateRequest(req, opts, false, req.Model)
+	translatedReq, body, err := e.translateRequest(req, opts, false)
 	if err != nil {
 		return resp, err
 	}
@@ -110,7 +110,7 @@ func (e *AIStudioExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth
 	reporter := newUsageReporter(ctx, e.Identifier(), req.Model, auth)
 	defer reporter.trackFailure(ctx, &err)
 
-	translatedReq, body, err := e.translateRequest(req, opts, true, req.Model)
+	translatedReq, body, err := e.translateRequest(req, opts, true)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func (e *AIStudioExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth
 
 // CountTokens counts tokens for the given request using the AI Studio API.
 func (e *AIStudioExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
-	_, body, err := e.translateRequest(req, opts, false, req.Model)
+	_, body, err := e.translateRequest(req, opts, false)
 	if err != nil {
 		return cliproxyexecutor.Response{}, err
 	}
@@ -320,11 +320,8 @@ type translatedPayload struct {
 	toFormat sdktranslator.Format
 }
 
-func (e *AIStudioExecutor) translateRequest(req cliproxyexecutor.Request, opts cliproxyexecutor.Options, stream bool, upstreamModel string) ([]byte, translatedPayload, error) {
-	model := strings.TrimSpace(upstreamModel)
-	if model == "" {
-		model = strings.TrimSpace(req.Model)
-	}
+func (e *AIStudioExecutor) translateRequest(req cliproxyexecutor.Request, opts cliproxyexecutor.Options, stream bool) ([]byte, translatedPayload, error) {
+	model := strings.TrimSpace(req.Model)
 
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("gemini")
