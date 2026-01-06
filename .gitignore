@@ -1,6 +1,9 @@
 # Binaries
 cli-proxy-api
+cliproxyapi
+server
 *.exe
+*.deb
 
 # Configuration
 config.yaml

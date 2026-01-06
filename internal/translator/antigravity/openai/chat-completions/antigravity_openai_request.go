@@ -162,6 +162,17 @@ func ConvertOpenAIRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 						}
 					}
 				}
+				if content := m.Get("content"); content.IsArray() {
+					for _, item := range content.Array() {
+						if item.Get("type").String() == "tool_use" {
+							id := item.Get("id").String()
+							name := item.Get("name").String()
+							if id != "" && name != "" {
+								tcID2Name[id] = name
+							}
+						}
+					}
+				}
 			}
 		}
 
@@ -241,6 +252,45 @@ func ConvertOpenAIRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 							} else {
 								log.Warnf("Unknown file name extension '%s' in user message, skip", ext)
 							}
+						case "tool_result":
+							toolUseID := item.Get("tool_use_id").String()
+							name := tcID2Name[toolUseID]
+							content := item.Get("content")
+							// If name not found in map, use tool_use_id as fallback name
+							// to avoid silently dropping tool results
+							if name == "" && toolUseID != "" {
+								log.Warnf("tool_result has tool_use_id '%s' but no matching tool_use was found; using id as function name", toolUseID)
+								name = toolUseID
+							}
+							if name != "" {
+								frNode := []byte(`{"functionResponse":{"name":"","response":{"name":"","content":{}}}}`)
+								frNode, _ = sjson.SetBytes(frNode, "functionResponse.name", name)
+								frNode, _ = sjson.SetBytes(frNode, "functionResponse.response.name", name)
+								// Include id for Claude models via Antigravity
+								if toolUseID != "" {
+									frNode, _ = sjson.SetBytes(frNode, "functionResponse.id", toolUseID)
+								}
+
+								// Handle content
+								if content.Type == gjson.String {
+									if gjson.Valid(content.String()) {
+										frNode, _ = sjson.SetRawBytes(frNode, "functionResponse.response.result", []byte(content.String()))
+									} else {
+										frNode, _ = sjson.SetBytes(frNode, "functionResponse.response.result", content.String())
+									}
+								} else if content.IsArray() {
+									var sb strings.Builder
+									for _, part := range content.Array() {
+										if part.Get("type").String() == "text" {
+											sb.WriteString(part.Get("text").String())
+										}
+									}
+									frNode, _ = sjson.SetBytes(frNode, "functionResponse.response.result", sb.String())
+								}
+
+								node, _ = sjson.SetRawBytes(node, "parts."+itoa(p)+"", frNode)
+								p++
+							}
 						}
 					}
 				}
@@ -256,6 +306,7 @@ func ConvertOpenAIRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 					for _, item := range content.Array() {
 						switch item.Get("type").String() {
 						case "text":
+							node, _ = sjson.SetBytes(node, "parts."+itoa(p)+".text", item.Get("text").String())
 							p++
 						case "image_url":
 							// If the assistant returned an inline data URL, preserve it for history fidelity.
@@ -271,6 +322,24 @@ func ConvertOpenAIRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 									p++
 								}
 							}
+						case "tool_use":
+							id := item.Get("id").String()
+							name := item.Get("name").String()
+
+							node, _ = sjson.SetBytes(node, "parts."+itoa(p)+".functionCall.id", id)
+							node, _ = sjson.SetBytes(node, "parts."+itoa(p)+".functionCall.name", name)
+
+							if input := item.Get("input"); input.Exists() {
+								if input.Type == gjson.JSON {
+									node, _ = sjson.SetRawBytes(node, "parts."+itoa(p)+".functionCall.args", []byte(input.Raw))
+								} else {
+									node, _ = sjson.SetRawBytes(node, "parts."+itoa(p)+".functionCall.args", []byte("{}"))
+								}
+							} else {
+								node, _ = sjson.SetRawBytes(node, "parts."+itoa(p)+".functionCall.args", []byte("{}"))
+							}
+							node, _ = sjson.SetBytes(node, "parts."+itoa(p)+".thoughtSignature", geminiCLIFunctionThoughtSignature)
+							p++
 						}
 					}
 				}
@@ -389,6 +458,37 @@ func ConvertOpenAIRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 					hasFunction = true
 					hasTool = true
 				}
+			} else if t.Get("input_schema").Exists() {
+				// Anthropic-style tool definition support
+				fnRaw := t.Raw
+				renamed, errRename := util.RenameKey(fnRaw, "input_schema", "parametersJsonSchema")
+				if errRename != nil {
+					log.Warnf("Failed to rename input_schema for tool '%s': %v", t.Get("name").String(), errRename)
+					// Proceed with original, might fail but better than nothing
+				} else {
+					fnRaw = renamed
+				}
+
+				// Ensure schema completeness similar to OpenAI path
+				if !gjson.Get(fnRaw, "parametersJsonSchema").Exists() {
+					var errSet error
+					fnRaw, errSet = sjson.Set(fnRaw, "parametersJsonSchema.type", "object")
+					if errSet == nil {
+						fnRaw, _ = sjson.SetRaw(fnRaw, "parametersJsonSchema.properties", `{}`)
+					}
+				}
+
+				if !hasFunction {
+					toolNode, _ = sjson.SetRawBytes(toolNode, "functionDeclarations", []byte("[]"))
+				}
+				tmp, errSet := sjson.SetRawBytes(toolNode, "functionDeclarations.-1", []byte(fnRaw))
+				if errSet != nil {
+					log.Warnf("Failed to append tool declaration for '%s': %v", t.Get("name").String(), errSet)
+					continue
+				}
+				toolNode = tmp
+				hasFunction = true
+				hasTool = true
 			}
 			if gs := t.Get("google_search"); gs.Exists() {
 				var errSet error
