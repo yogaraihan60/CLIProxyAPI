@@ -3,6 +3,8 @@
 // when registering their supported models.
 package registry
 
+import "strings"
+
 // GetClaudeModels returns the standard Claude model definitions
 func GetClaudeModels() []*ModelInfo {
 	return []*ModelInfo{
@@ -822,43 +824,51 @@ func LookupStaticModelInfo(modelID string) *ModelInfo {
 	return nil
 }
 
-// GenerateImageModelVariants generates all resolution and aspect ratio variants for an image model
-// e.g., gemini-3-pro-image-preview -> gemini-3-pro-image-preview-4k-16x9, etc.
+// IsImageGenerationModel checks if a model ID represents an image generation model
+// that should have resolution/aspect ratio variants generated.
+func IsImageGenerationModel(modelID string) bool {
+	// Check for known image generation model patterns
+	imageModelPatterns := []string{
+		"-image-preview",
+		"-image-generation",
+	}
+	modelLower := strings.ToLower(modelID)
+	for _, pattern := range imageModelPatterns {
+		if strings.Contains(modelLower, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// GenerateImageModelVariants generates resolution variants for an image model
+// e.g., gemini-3-pro-image-preview -> gemini-3-pro-image-preview-2k, gemini-3-pro-image-preview-4k
 func GenerateImageModelVariants(baseModel *ModelInfo) []*ModelInfo {
 	if baseModel == nil {
 		return nil
 	}
 
-	resolutions := []string{"", "-2k", "-4k"}
-	aspectRatios := []string{"", "-1x1", "-16x9", "-9x16", "-4x3", "-3x4", "-21x9"}
-
+	resolutions := []string{"-2k", "-4k"}
 	var variants []*ModelInfo
 
 	for _, res := range resolutions {
-		for _, ar := range aspectRatios {
-			// Skip if both are empty (that's the base model already included)
-			if res == "" && ar == "" {
-				continue
-			}
-
-			variantID := baseModel.ID + res + ar
-			variant := &ModelInfo{
-				ID:                         variantID,
-				Object:                     baseModel.Object,
-				Created:                    baseModel.Created,
-				OwnedBy:                    baseModel.OwnedBy,
-				Type:                       baseModel.Type,
-				Name:                       baseModel.Name, // Keep same backend name
-				Version:                    baseModel.Version,
-				DisplayName:                baseModel.DisplayName + " (" + variantID[len(baseModel.ID)+1:] + ")",
-				Description:                baseModel.Description + " with " + variantID[len(baseModel.ID)+1:] + " configuration",
-				InputTokenLimit:            baseModel.InputTokenLimit,
-				OutputTokenLimit:           baseModel.OutputTokenLimit,
-				SupportedGenerationMethods: baseModel.SupportedGenerationMethods,
-				Thinking:                   baseModel.Thinking,
-			}
-			variants = append(variants, variant)
+		variantID := baseModel.ID + res
+		variant := &ModelInfo{
+			ID:                         variantID,
+			Object:                     baseModel.Object,
+			Created:                    baseModel.Created,
+			OwnedBy:                    baseModel.OwnedBy,
+			Type:                       baseModel.Type,
+			Name:                       baseModel.Name, // Keep same backend name
+			Version:                    baseModel.Version,
+			DisplayName:                baseModel.DisplayName + " (" + res[1:] + ")",
+			Description:                baseModel.Description + " with " + res[1:] + " resolution",
+			InputTokenLimit:            baseModel.InputTokenLimit,
+			OutputTokenLimit:           baseModel.OutputTokenLimit,
+			SupportedGenerationMethods: baseModel.SupportedGenerationMethods,
+			Thinking:                   baseModel.Thinking,
 		}
+		variants = append(variants, variant)
 	}
 
 	return variants

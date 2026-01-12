@@ -16,11 +16,7 @@ import (
 )
 
 // imageModelSuffixes lists all suffixes that can be stripped from image model names
-var imageModelSuffixes = []string{
-	"-4k", "-2k", "-hd",
-	"-21x9", "-21-9", "-16x9", "-16-9", "-9x16", "-9-16",
-	"-4x3", "-4-3", "-3x4", "-3-4", "-1x1", "-1-1",
-}
+var imageModelSuffixes = []string{"-4k", "-2k", "-hd"}
 
 // stripImageModelSuffixes removes resolution and aspect ratio suffixes from model names
 func stripImageModelSuffixes(model string) string {

@@ -1008,6 +1008,12 @@ func FetchAntigravityModels(ctx context.Context, auth *cliproxyauth.Auth, cfg *c
 					}
 				}
 				models = append(models, modelInfo)
+
+				// Generate image model variants for image generation models
+				if registry.IsImageGenerationModel(aliasName) {
+					variants := registry.GenerateImageModelVariants(modelInfo)
+					models = append(models, variants...)
+				}
 			}
 		}
 		return models

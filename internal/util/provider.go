@@ -36,7 +36,7 @@ func GetProviderName(modelName string) []string {
 	}
 
 	// First, try to strip image model suffixes to get the base model name
-	// This allows models like "gemini-3-pro-image-preview-4k-16x9" to resolve to the
+	// This allows models like "gemini-3-pro-image-preview-4k" to resolve to the
 	// provider for "gemini-3-pro-image-preview"
 	imgConfig := ParseImageModelSuffixes(modelName)
 	baseModelName := imgConfig.BaseModel

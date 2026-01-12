@@ -41,9 +41,6 @@ func ConvertOpenAIRequestToGemini(modelName string, inputRawJSON []byte, _ bool)
 	out, _ = sjson.SetBytes(out, "model", actualModelName)
 
 	// Apply image config from model suffixes if detected
-	if imgConfig.AspectRatio != "" {
-		out, _ = sjson.SetBytes(out, "generationConfig.imageConfig.aspectRatio", imgConfig.AspectRatio)
-	}
 	if imgConfig.ImageSize != "" {
 		out, _ = sjson.SetBytes(out, "generationConfig.imageConfig.imageSize", imgConfig.ImageSize)
 	}
