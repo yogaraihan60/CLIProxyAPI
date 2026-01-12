@@ -101,7 +101,23 @@ func GetClaudeModels() []*ModelInfo {
 
 // GetGeminiModels returns the standard Gemini model definitions
 func GetGeminiModels() []*ModelInfo {
-	return []*ModelInfo{
+	imageModel := &ModelInfo{
+		ID:                         "gemini-3-pro-image-preview",
+		Object:                     "model",
+		Created:                    1737158400,
+		OwnedBy:                    "google",
+		Type:                       "gemini",
+		Name:                       "models/gemini-3-pro-image-preview",
+		Version:                    "3.0",
+		DisplayName:                "Gemini 3 Pro Image Preview",
+		Description:                "Gemini 3 Pro Image Preview",
+		InputTokenLimit:            1048576,
+		OutputTokenLimit:           65536,
+		SupportedGenerationMethods: []string{"generateContent", "countTokens", "createCachedContent", "batchGenerateContent"},
+		Thinking:                   &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true, Levels: []string{"low", "high"}},
+	}
+
+	models := []*ModelInfo{
 		{
 			ID:                         "gemini-2.5-pro",
 			Object:                     "model",
@@ -177,26 +193,33 @@ func GetGeminiModels() []*ModelInfo {
 			SupportedGenerationMethods: []string{"generateContent", "countTokens", "createCachedContent", "batchGenerateContent"},
 			Thinking:                   &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true, Levels: []string{"minimal", "low", "medium", "high"}},
 		},
-		{
-			ID:                         "gemini-3-pro-image-preview",
-			Object:                     "model",
-			Created:                    1737158400,
-			OwnedBy:                    "google",
-			Type:                       "gemini",
-			Name:                       "models/gemini-3-pro-image-preview",
-			Version:                    "3.0",
-			DisplayName:                "Gemini 3 Pro Image Preview",
-			Description:                "Gemini 3 Pro Image Preview",
-			InputTokenLimit:            1048576,
-			OutputTokenLimit:           65536,
-			SupportedGenerationMethods: []string{"generateContent", "countTokens", "createCachedContent", "batchGenerateContent"},
-			Thinking:                   &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true, Levels: []string{"low", "high"}},
-		},
+		imageModel,
 	}
+
+	// Add image model variants (resolution + aspect ratio combinations)
+	models = append(models, GenerateImageModelVariants(imageModel)...)
+
+	return models
 }
 
 func GetGeminiVertexModels() []*ModelInfo {
-	return []*ModelInfo{
+	imageModel := &ModelInfo{
+		ID:                         "gemini-3-pro-image-preview",
+		Object:                     "model",
+		Created:                    1737158400,
+		OwnedBy:                    "google",
+		Type:                       "gemini",
+		Name:                       "models/gemini-3-pro-image-preview",
+		Version:                    "3.0",
+		DisplayName:                "Gemini 3 Pro Image Preview",
+		Description:                "Gemini 3 Pro Image Preview",
+		InputTokenLimit:            1048576,
+		OutputTokenLimit:           65536,
+		SupportedGenerationMethods: []string{"generateContent", "countTokens", "createCachedContent", "batchGenerateContent"},
+		Thinking:                   &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true, Levels: []string{"low", "high"}},
+	}
+
+	models := []*ModelInfo{
 		{
 			ID:                         "gemini-2.5-pro",
 			Object:                     "model",
@@ -272,22 +295,13 @@ func GetGeminiVertexModels() []*ModelInfo {
 			SupportedGenerationMethods: []string{"generateContent", "countTokens", "createCachedContent", "batchGenerateContent"},
 			Thinking:                   &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true, Levels: []string{"minimal", "low", "medium", "high"}},
 		},
-		{
-			ID:                         "gemini-3-pro-image-preview",
-			Object:                     "model",
-			Created:                    1737158400,
-			OwnedBy:                    "google",
-			Type:                       "gemini",
-			Name:                       "models/gemini-3-pro-image-preview",
-			Version:                    "3.0",
-			DisplayName:                "Gemini 3 Pro Image Preview",
-			Description:                "Gemini 3 Pro Image Preview",
-			InputTokenLimit:            1048576,
-			OutputTokenLimit:           65536,
-			SupportedGenerationMethods: []string{"generateContent", "countTokens", "createCachedContent", "batchGenerateContent"},
-			Thinking:                   &ThinkingSupport{Min: 128, Max: 32768, ZeroAllowed: false, DynamicAllowed: true, Levels: []string{"low", "high"}},
-		},
+		imageModel,
 	}
+
+	// Add image model variants (resolution + aspect ratio combinations)
+	models = append(models, GenerateImageModelVariants(imageModel)...)
+
+	return models
 }
 
 // GetGeminiCLIModels returns the standard Gemini model definitions
@@ -806,4 +820,46 @@ func LookupStaticModelInfo(modelID string) *ModelInfo {
 		}
 	}
 	return nil
+}
+
+// GenerateImageModelVariants generates all resolution and aspect ratio variants for an image model
+// e.g., gemini-3-pro-image-preview -> gemini-3-pro-image-preview-4k-16x9, etc.
+func GenerateImageModelVariants(baseModel *ModelInfo) []*ModelInfo {
+	if baseModel == nil {
+		return nil
+	}
+
+	resolutions := []string{"", "-2k", "-4k"}
+	aspectRatios := []string{"", "-1x1", "-16x9", "-9x16", "-4x3", "-3x4", "-21x9"}
+
+	var variants []*ModelInfo
+
+	for _, res := range resolutions {
+		for _, ar := range aspectRatios {
+			// Skip if both are empty (that's the base model already included)
+			if res == "" && ar == "" {
+				continue
+			}
+
+			variantID := baseModel.ID + res + ar
+			variant := &ModelInfo{
+				ID:                         variantID,
+				Object:                     baseModel.Object,
+				Created:                    baseModel.Created,
+				OwnedBy:                    baseModel.OwnedBy,
+				Type:                       baseModel.Type,
+				Name:                       baseModel.Name, // Keep same backend name
+				Version:                    baseModel.Version,
+				DisplayName:                baseModel.DisplayName + " (" + variantID[len(baseModel.ID)+1:] + ")",
+				Description:                baseModel.Description + " with " + variantID[len(baseModel.ID)+1:] + " configuration",
+				InputTokenLimit:            baseModel.InputTokenLimit,
+				OutputTokenLimit:           baseModel.OutputTokenLimit,
+				SupportedGenerationMethods: baseModel.SupportedGenerationMethods,
+				Thinking:                   baseModel.Thinking,
+			}
+			variants = append(variants, variant)
+		}
+	}
+
+	return variants
 }

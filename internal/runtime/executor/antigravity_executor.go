@@ -1442,7 +1442,11 @@ func modelName2Alias(modelName string) string {
 }
 
 func alias2ModelName(modelName string) string {
-	switch modelName {
+	// Strip image model suffixes first to normalize
+	imgConfig := util.ParseImageModelSuffixes(modelName)
+	baseModel := imgConfig.BaseModel
+
+	switch baseModel {
 	case "gemini-2.5-computer-use-preview-10-2025":
 		return "rev19-uic3-1p"
 	case "gemini-3-pro-image-preview":
@@ -1458,7 +1462,7 @@ func alias2ModelName(modelName string) string {
 	case "gemini-claude-opus-4-5-thinking":
 		return "claude-opus-4-5-thinking"
 	default:
-		return modelName
+		return baseModel
 	}
 }
 

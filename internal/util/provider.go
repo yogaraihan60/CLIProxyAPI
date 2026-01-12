@@ -35,6 +35,12 @@ func GetProviderName(modelName string) []string {
 		return nil
 	}
 
+	// First, try to strip image model suffixes to get the base model name
+	// This allows models like "gemini-3-pro-image-preview-4k-16x9" to resolve to the
+	// provider for "gemini-3-pro-image-preview"
+	imgConfig := ParseImageModelSuffixes(modelName)
+	baseModelName := imgConfig.BaseModel
+
 	providers := make([]string, 0, 4)
 	seen := make(map[string]struct{})
 
@@ -51,6 +57,13 @@ func GetProviderName(modelName string) []string {
 
 	for _, provider := range registry.GetGlobalRegistry().GetModelProviders(modelName) {
 		appendProvider(provider)
+	}
+
+	// If no providers found and we stripped suffixes, try with the base model name
+	if len(providers) == 0 && baseModelName != modelName {
+		for _, provider := range registry.GetGlobalRegistry().GetModelProviders(baseModelName) {
+			appendProvider(provider)
+		}
 	}
 
 	if len(providers) > 0 {

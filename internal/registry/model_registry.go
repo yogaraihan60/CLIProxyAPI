@@ -15,6 +15,22 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// imageModelSuffixes lists all suffixes that can be stripped from image model names
+var imageModelSuffixes = []string{
+	"-4k", "-2k", "-hd",
+	"-21x9", "-21-9", "-16x9", "-16-9", "-9x16", "-9-16",
+	"-4x3", "-4-3", "-3x4", "-3-4", "-1x1", "-1-1",
+}
+
+// stripImageModelSuffixes removes resolution and aspect ratio suffixes from model names
+func stripImageModelSuffixes(model string) string {
+	result := model
+	for _, suffix := range imageModelSuffixes {
+		result = strings.ReplaceAll(result, suffix, "")
+	}
+	return result
+}
+
 // ModelInfo represents information about an available model
 type ModelInfo struct {
 	// ID is the unique identifier for the model
@@ -632,6 +648,11 @@ func (r *ModelRegistry) ClientSupportsModel(clientID, modelID string) bool {
 		return false
 	}
 
+	// Normalize modelID by stripping image suffixes (e.g., -4k-16x9)
+	// This allows requests for "gemini-3-pro-image-preview-4k-16x9" to match
+	// clients that have "gemini-3-pro-image-preview" registered
+	baseModelID := stripImageModelSuffixes(modelID)
+
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -641,7 +662,12 @@ func (r *ModelRegistry) ClientSupportsModel(clientID, modelID string) bool {
 	}
 
 	for _, id := range models {
-		if strings.EqualFold(strings.TrimSpace(id), modelID) {
+		trimmedID := strings.TrimSpace(id)
+		if strings.EqualFold(trimmedID, modelID) {
+			return true
+		}
+		// Also check against the base model (with image suffixes stripped)
+		if baseModelID != modelID && strings.EqualFold(trimmedID, baseModelID) {
 			return true
 		}
 	}

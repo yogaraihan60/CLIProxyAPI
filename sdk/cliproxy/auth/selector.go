@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/util"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/executor"
 )
 
@@ -190,9 +191,24 @@ func isAuthBlockedForModel(auth *Auth, model string, now time.Time) (bool, block
 	if auth.Disabled || auth.Status == StatusDisabled {
 		return true, blockReasonDisabled, time.Time{}
 	}
+
+	// Normalize model name by stripping image suffixes (e.g., -4k-16x9)
+	// This allows models like "gemini-3-pro-image-preview-4k-16x9" to match
+	// auth entries for "gemini-3-pro-image-preview"
+	normalizedModel := model
 	if model != "" {
+		imgConfig := util.ParseImageModelSuffixes(model)
+		normalizedModel = imgConfig.BaseModel
+	}
+
+	if normalizedModel != "" {
 		if len(auth.ModelStates) > 0 {
-			if state, ok := auth.ModelStates[model]; ok && state != nil {
+			// Try the normalized model first, fall back to the original if not found
+			state, ok := auth.ModelStates[normalizedModel]
+			if !ok && normalizedModel != model {
+				state, ok = auth.ModelStates[model]
+			}
+			if ok && state != nil {
 				if state.Status == StatusDisabled {
 					return true, blockReasonDisabled, time.Time{}
 				}

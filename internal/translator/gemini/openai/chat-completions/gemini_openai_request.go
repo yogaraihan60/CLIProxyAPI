@@ -32,8 +32,21 @@ func ConvertOpenAIRequestToGemini(modelName string, inputRawJSON []byte, _ bool)
 	// Base envelope (no default thinkingConfig)
 	out := []byte(`{"contents":[]}`)
 
+	// Parse image model suffixes (e.g., gemini-3-pro-image-preview-4k-16x9)
+	// This extracts aspect ratio and image size from model name and normalizes it
+	imgConfig := util.ParseImageModelSuffixes(modelName)
+	actualModelName := imgConfig.BaseModel
+
 	// Model
-	out, _ = sjson.SetBytes(out, "model", modelName)
+	out, _ = sjson.SetBytes(out, "model", actualModelName)
+
+	// Apply image config from model suffixes if detected
+	if imgConfig.AspectRatio != "" {
+		out, _ = sjson.SetBytes(out, "generationConfig.imageConfig.aspectRatio", imgConfig.AspectRatio)
+	}
+	if imgConfig.ImageSize != "" {
+		out, _ = sjson.SetBytes(out, "generationConfig.imageConfig.imageSize", imgConfig.ImageSize)
+	}
 
 	// Reasoning effort -> thinkingBudget/include_thoughts
 	// Note: OpenAI official fields take precedence over extra_body.google.thinking_config
@@ -42,9 +55,9 @@ func ConvertOpenAIRequestToGemini(modelName string, inputRawJSON []byte, _ bool)
 	// use thinkingLevel/includeThoughts instead.
 	re := gjson.GetBytes(rawJSON, "reasoning_effort")
 	hasOfficialThinking := re.Exists()
-	if hasOfficialThinking && util.ModelSupportsThinking(modelName) {
+	if hasOfficialThinking && util.ModelSupportsThinking(actualModelName) {
 		effort := strings.ToLower(strings.TrimSpace(re.String()))
-		if util.IsGemini3Model(modelName) {
+		if util.IsGemini3Model(actualModelName) {
 			switch effort {
 			case "none":
 				out, _ = sjson.DeleteBytes(out, "generationConfig.thinkingConfig")
@@ -52,18 +65,18 @@ func ConvertOpenAIRequestToGemini(modelName string, inputRawJSON []byte, _ bool)
 				includeThoughts := true
 				out = util.ApplyGeminiThinkingLevel(out, "", &includeThoughts)
 			default:
-				if level, ok := util.ValidateGemini3ThinkingLevel(modelName, effort); ok {
+				if level, ok := util.ValidateGemini3ThinkingLevel(actualModelName, effort); ok {
 					out = util.ApplyGeminiThinkingLevel(out, level, nil)
 				}
 			}
-		} else if !util.ModelUsesThinkingLevels(modelName) {
+		} else if !util.ModelUsesThinkingLevels(actualModelName) {
 			out = util.ApplyReasoningEffortToGemini(out, effort)
 		}
 	}
 
 	// Cherry Studio extension extra_body.google.thinking_config (effective only when official fields are absent)
 	// Only apply for models that use numeric budgets, not discrete levels.
-	if !hasOfficialThinking && util.ModelSupportsThinking(modelName) && !util.ModelUsesThinkingLevels(modelName) {
+	if !hasOfficialThinking && util.ModelSupportsThinking(actualModelName) && !util.ModelUsesThinkingLevels(actualModelName) {
 		if tc := gjson.GetBytes(rawJSON, "extra_body.google.thinking_config"); tc.Exists() && tc.IsObject() {
 			var setBudget bool
 			var budget int
