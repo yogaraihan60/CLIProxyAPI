@@ -1200,6 +1200,42 @@ func buildCodexConfigModels(entry *config.CodexKey) []*ModelInfo {
 	return buildConfigModels(entry.Models, "openai", "openai")
 }
 
+// generateImageVariantsForModels generates -2k and -4k variants for image generation models.
+// This is applied after alias transformation so that aliased names like "gemini-3-pro-image-preview"
+// get their resolution variants.
+func generateImageVariantsForModels(models []*ModelInfo) []*ModelInfo {
+	if len(models) == 0 {
+		return models
+	}
+	out := make([]*ModelInfo, 0, len(models)*2)
+	seen := make(map[string]struct{}, len(models)*2)
+	for _, model := range models {
+		if model == nil {
+			continue
+		}
+		key := strings.ToLower(model.ID)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, model)
+
+		// Generate variants for image generation models
+		if registry.IsImageGenerationModel(model.ID) {
+			variants := registry.GenerateImageModelVariants(model)
+			for _, v := range variants {
+				variantKey := strings.ToLower(v.ID)
+				if _, exists := seen[variantKey]; exists {
+					continue
+				}
+				seen[variantKey] = struct{}{}
+				out = append(out, v)
+			}
+		}
+	}
+	return out
+}
+
 func rewriteModelInfoName(name, oldID, newID string) string {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
@@ -1231,13 +1267,13 @@ func applyOAuthModelAlias(cfg *config.Config, provider, authKind string, models 
 		return models
 	}
 	channel := coreauth.OAuthModelAliasChannel(provider, authKind)
-	if channel == "" || len(cfg.OAuthModelAlias) == 0 {
-		return models
+	aliasesExist := channel != "" && len(cfg.OAuthModelAlias) > 0 && len(cfg.OAuthModelAlias[channel]) > 0
+
+	// If no aliases, still generate image variants for image models
+	if !aliasesExist {
+		return generateImageVariantsForModels(models)
 	}
 	aliases := cfg.OAuthModelAlias[channel]
-	if len(aliases) == 0 {
-		return models
-	}
 
 	type aliasEntry struct {
 		alias string
@@ -1327,5 +1363,6 @@ func applyOAuthModelAlias(cfg *config.Config, provider, authKind string, models 
 			out = append(out, model)
 		}
 	}
-	return out
+	// Generate image model variants after alias transformation
+	return generateImageVariantsForModels(out)
 }

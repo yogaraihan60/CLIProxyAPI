@@ -5,6 +5,7 @@ import (
 
 	internalconfig "github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/thinking"
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/util"
 )
 
 type modelAliasEntry interface {
@@ -154,8 +155,16 @@ func resolveUpstreamModelFromAliasTable(m *Manager, auth *Auth, requestedModel, 
 	requestResult := thinking.ParseSuffix(requestedModel)
 	baseModel := requestResult.ModelName
 
-	// Candidate keys to match: base model and raw input (handles suffix-parsing edge cases).
-	candidates := []string{baseModel}
+	// Also strip image suffixes (e.g., -4k, -2k) to find the base model for alias lookup
+	imgConfig := util.ParseImageModelSuffixes(baseModel)
+	baseModelNoImageSuffix := imgConfig.BaseModel
+
+	// Candidate keys to match: base model without image suffix, base model with thinking suffix stripped,
+	// and raw input (handles suffix-parsing edge cases).
+	candidates := []string{baseModelNoImageSuffix}
+	if baseModelNoImageSuffix != baseModel {
+		candidates = append(candidates, baseModel)
+	}
 	if baseModel != requestedModel {
 		candidates = append(candidates, requestedModel)
 	}

@@ -108,9 +108,12 @@ func LookupStaticModelInfo(modelID string) *ModelInfo {
 // that should have resolution/aspect ratio variants generated.
 func IsImageGenerationModel(modelID string) bool {
 	// Check for known image generation model patterns
+	// Includes both aliased names (-image-preview) and upstream names (-image, -pro-image)
 	imageModelPatterns := []string{
 		"-image-preview",
 		"-image-generation",
+		"-pro-image", // upstream format: gemini-3-pro-image
+		"imagen-",    // imagen models
 	}
 	modelLower := strings.ToLower(modelID)
 	for _, pattern := range imageModelPatterns {
