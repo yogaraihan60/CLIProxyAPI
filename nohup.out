@@ -1,3 +1,0 @@
-CLIProxyAPI Version: dev, Commit: none, BuiltAt: unknown
-API server started successfully on: 0.0.0.0:8317
-server clients and configuration updated: 2 clients (2 auth entries + 0 Gemini API keys + 0 Claude API keys + 0 Codex keys + 0 Vertex-compat + 0 OpenAI-compat)
