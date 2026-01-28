@@ -312,12 +312,15 @@ func (e *GeminiVertexExecutor) executeWithServiceAccount(ctx context.Context, au
 		from := opts.SourceFormat
 		to := sdktranslator.FromString("gemini")
 
+		// Get the original requested model (before alias resolution) to preserve image suffixes like -4k
+		requestedModel := payloadRequestedModel(opts, req.Model)
+
 		originalPayload := bytes.Clone(req.Payload)
 		if len(opts.OriginalRequest) > 0 {
 			originalPayload = bytes.Clone(opts.OriginalRequest)
 		}
-		originalTranslated := sdktranslator.TranslateRequest(from, to, baseModel, originalPayload, false)
-		body = sdktranslator.TranslateRequest(from, to, baseModel, bytes.Clone(req.Payload), false)
+		originalTranslated := sdktranslator.TranslateRequest(from, to, requestedModel, originalPayload, false)
+		body = sdktranslator.TranslateRequest(from, to, requestedModel, bytes.Clone(req.Payload), false)
 
 		body, err = thinking.ApplyThinking(body, req.Model, from.String(), to.String(), e.Identifier())
 		if err != nil {
@@ -325,7 +328,6 @@ func (e *GeminiVertexExecutor) executeWithServiceAccount(ctx context.Context, au
 		}
 
 		body = fixGeminiImageAspectRatio(baseModel, body)
-		requestedModel := payloadRequestedModel(opts, req.Model)
 		body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 		body, _ = sjson.SetBytes(body, "model", baseModel)
 	}
@@ -426,12 +428,15 @@ func (e *GeminiVertexExecutor) executeWithAPIKey(ctx context.Context, auth *clip
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("gemini")
 
+	// Get the original requested model (before alias resolution) to preserve image suffixes like -4k
+	requestedModel := payloadRequestedModel(opts, req.Model)
+
 	originalPayload := bytes.Clone(req.Payload)
 	if len(opts.OriginalRequest) > 0 {
 		originalPayload = bytes.Clone(opts.OriginalRequest)
 	}
-	originalTranslated := sdktranslator.TranslateRequest(from, to, baseModel, originalPayload, false)
-	body := sdktranslator.TranslateRequest(from, to, baseModel, bytes.Clone(req.Payload), false)
+	originalTranslated := sdktranslator.TranslateRequest(from, to, requestedModel, originalPayload, false)
+	body := sdktranslator.TranslateRequest(from, to, requestedModel, bytes.Clone(req.Payload), false)
 
 	body, err = thinking.ApplyThinking(body, req.Model, from.String(), to.String(), e.Identifier())
 	if err != nil {
@@ -439,7 +444,6 @@ func (e *GeminiVertexExecutor) executeWithAPIKey(ctx context.Context, auth *clip
 	}
 
 	body = fixGeminiImageAspectRatio(baseModel, body)
-	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 	body, _ = sjson.SetBytes(body, "model", baseModel)
 
@@ -530,12 +534,15 @@ func (e *GeminiVertexExecutor) executeStreamWithServiceAccount(ctx context.Conte
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("gemini")
 
+	// Get the original requested model (before alias resolution) to preserve image suffixes like -4k
+	requestedModel := payloadRequestedModel(opts, req.Model)
+
 	originalPayload := bytes.Clone(req.Payload)
 	if len(opts.OriginalRequest) > 0 {
 		originalPayload = bytes.Clone(opts.OriginalRequest)
 	}
-	originalTranslated := sdktranslator.TranslateRequest(from, to, baseModel, originalPayload, true)
-	body := sdktranslator.TranslateRequest(from, to, baseModel, bytes.Clone(req.Payload), true)
+	originalTranslated := sdktranslator.TranslateRequest(from, to, requestedModel, originalPayload, true)
+	body := sdktranslator.TranslateRequest(from, to, requestedModel, bytes.Clone(req.Payload), true)
 
 	body, err = thinking.ApplyThinking(body, req.Model, from.String(), to.String(), e.Identifier())
 	if err != nil {
@@ -543,7 +550,6 @@ func (e *GeminiVertexExecutor) executeStreamWithServiceAccount(ctx context.Conte
 	}
 
 	body = fixGeminiImageAspectRatio(baseModel, body)
-	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 	body, _ = sjson.SetBytes(body, "model", baseModel)
 
@@ -654,12 +660,15 @@ func (e *GeminiVertexExecutor) executeStreamWithAPIKey(ctx context.Context, auth
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("gemini")
 
+	// Get the original requested model (before alias resolution) to preserve image suffixes like -4k
+	requestedModel := payloadRequestedModel(opts, req.Model)
+
 	originalPayload := bytes.Clone(req.Payload)
 	if len(opts.OriginalRequest) > 0 {
 		originalPayload = bytes.Clone(opts.OriginalRequest)
 	}
-	originalTranslated := sdktranslator.TranslateRequest(from, to, baseModel, originalPayload, true)
-	body := sdktranslator.TranslateRequest(from, to, baseModel, bytes.Clone(req.Payload), true)
+	originalTranslated := sdktranslator.TranslateRequest(from, to, requestedModel, originalPayload, true)
+	body := sdktranslator.TranslateRequest(from, to, requestedModel, bytes.Clone(req.Payload), true)
 
 	body, err = thinking.ApplyThinking(body, req.Model, from.String(), to.String(), e.Identifier())
 	if err != nil {
@@ -667,7 +676,6 @@ func (e *GeminiVertexExecutor) executeStreamWithAPIKey(ctx context.Context, auth
 	}
 
 	body = fixGeminiImageAspectRatio(baseModel, body)
-	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
 	body, _ = sjson.SetBytes(body, "model", baseModel)
 
