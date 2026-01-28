@@ -109,7 +109,8 @@ func (e *AntigravityExecutor) HttpRequest(ctx context.Context, auth *cliproxyaut
 
 // Execute performs a non-streaming request to the Antigravity API.
 func (e *AntigravityExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := normalizeModelForRequest(thinking.ParseSuffix(req.Model).ModelName)
 	isClaude := strings.Contains(strings.ToLower(baseModel), "claude")
 
 	if isClaude || strings.Contains(baseModel, "gemini-3-pro") {
@@ -258,7 +259,8 @@ attemptLoop:
 
 // executeClaudeNonStream performs a claude non-streaming request to the Antigravity API.
 func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := normalizeModelForRequest(thinking.ParseSuffix(req.Model).ModelName)
 
 	token, updatedAuth, errToken := e.ensureAccessToken(ctx, auth)
 	if errToken != nil {
@@ -647,7 +649,8 @@ func (e *AntigravityExecutor) convertStreamToNonStream(stream []byte) []byte {
 
 // ExecuteStream performs a streaming request to the Antigravity API.
 func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (stream <-chan cliproxyexecutor.StreamChunk, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := normalizeModelForRequest(thinking.ParseSuffix(req.Model).ModelName)
 
 	ctx = context.WithValue(ctx, "alt", "")
 
@@ -857,7 +860,8 @@ func (e *AntigravityExecutor) Refresh(ctx context.Context, auth *cliproxyauth.Au
 
 // CountTokens counts tokens for the given request using the Antigravity API.
 func (e *AntigravityExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := normalizeModelForRequest(thinking.ParseSuffix(req.Model).ModelName)
 
 	token, updatedAuth, errToken := e.ensureAccessToken(ctx, auth)
 	if errToken != nil {

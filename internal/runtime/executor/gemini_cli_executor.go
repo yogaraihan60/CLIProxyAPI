@@ -103,7 +103,8 @@ func (e *GeminiCLIExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.
 
 // Execute performs a non-streaming request to the Gemini CLI API.
 func (e *GeminiCLIExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	tokenSource, baseTokenData, err := prepareGeminiCLITokenSource(ctx, e.cfg, auth)
 	if err != nil {
@@ -255,7 +256,8 @@ func (e *GeminiCLIExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth
 
 // ExecuteStream performs a streaming request to the Gemini CLI API.
 func (e *GeminiCLIExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (stream <-chan cliproxyexecutor.StreamChunk, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	tokenSource, baseTokenData, err := prepareGeminiCLITokenSource(ctx, e.cfg, auth)
 	if err != nil {
@@ -452,7 +454,8 @@ func (e *GeminiCLIExecutor) ExecuteStream(ctx context.Context, auth *cliproxyaut
 
 // CountTokens counts tokens for the given request using the Gemini CLI API.
 func (e *GeminiCLIExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	tokenSource, baseTokenData, err := prepareGeminiCLITokenSource(ctx, e.cfg, auth)
 	if err != nil {

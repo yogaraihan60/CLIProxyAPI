@@ -17,6 +17,7 @@ import (
 	vertexauth "github.com/router-for-me/CLIProxyAPI/v6/internal/auth/vertex"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/thinking"
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/util"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/executor"
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v6/sdk/translator"
@@ -293,7 +294,8 @@ func (e *GeminiVertexExecutor) Refresh(_ context.Context, auth *cliproxyauth.Aut
 // executeWithServiceAccount handles authentication using service account credentials.
 // This method contains the original service account authentication logic.
 func (e *GeminiVertexExecutor) executeWithServiceAccount(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, projectID, location string, saJSON []byte) (resp cliproxyexecutor.Response, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
 	defer reporter.trackFailure(ctx, &err)
@@ -420,7 +422,8 @@ func (e *GeminiVertexExecutor) executeWithServiceAccount(ctx context.Context, au
 
 // executeWithAPIKey handles authentication using API key credentials.
 func (e *GeminiVertexExecutor) executeWithAPIKey(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, apiKey, baseURL string) (resp cliproxyexecutor.Response, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
 	defer reporter.trackFailure(ctx, &err)
@@ -526,7 +529,8 @@ func (e *GeminiVertexExecutor) executeWithAPIKey(ctx context.Context, auth *clip
 
 // executeStreamWithServiceAccount handles streaming authentication using service account credentials.
 func (e *GeminiVertexExecutor) executeStreamWithServiceAccount(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, projectID, location string, saJSON []byte) (stream <-chan cliproxyexecutor.StreamChunk, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
 	defer reporter.trackFailure(ctx, &err)
@@ -652,7 +656,8 @@ func (e *GeminiVertexExecutor) executeStreamWithServiceAccount(ctx context.Conte
 
 // executeStreamWithAPIKey handles streaming authentication using API key credentials.
 func (e *GeminiVertexExecutor) executeStreamWithAPIKey(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, apiKey, baseURL string) (stream <-chan cliproxyexecutor.StreamChunk, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
 	defer reporter.trackFailure(ctx, &err)
@@ -778,7 +783,8 @@ func (e *GeminiVertexExecutor) executeStreamWithAPIKey(ctx context.Context, auth
 
 // countTokensWithServiceAccount counts tokens using service account credentials.
 func (e *GeminiVertexExecutor) countTokensWithServiceAccount(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, projectID, location string, saJSON []byte) (cliproxyexecutor.Response, error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("gemini")
@@ -862,7 +868,8 @@ func (e *GeminiVertexExecutor) countTokensWithServiceAccount(ctx context.Context
 
 // countTokensWithAPIKey handles token counting using API key credentials.
 func (e *GeminiVertexExecutor) countTokensWithAPIKey(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, apiKey, baseURL string) (cliproxyexecutor.Response, error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("gemini")

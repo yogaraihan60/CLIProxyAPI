@@ -15,6 +15,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/thinking"
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/util"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/wsrelay"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/executor"
@@ -111,7 +112,8 @@ func (e *AIStudioExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.A
 
 // Execute performs a non-streaming request to the AI Studio API.
 func (e *AIStudioExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
 	defer reporter.trackFailure(ctx, &err)
 
@@ -167,7 +169,8 @@ func (e *AIStudioExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth,
 
 // ExecuteStream performs a streaming request to the AI Studio API.
 func (e *AIStudioExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (stream <-chan cliproxyexecutor.StreamChunk, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 	reporter := newUsageReporter(ctx, e.Identifier(), baseModel, auth)
 	defer reporter.trackFailure(ctx, &err)
 
@@ -317,7 +320,8 @@ func (e *AIStudioExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth
 
 // CountTokens counts tokens for the given request using the AI Studio API.
 func (e *AIStudioExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 	_, body, err := e.translateRequest(req, opts, false)
 	if err != nil {
 		return cliproxyexecutor.Response{}, err
@@ -383,7 +387,8 @@ type translatedPayload struct {
 }
 
 func (e *AIStudioExecutor) translateRequest(req cliproxyexecutor.Request, opts cliproxyexecutor.Options, stream bool) ([]byte, translatedPayload, error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("gemini")

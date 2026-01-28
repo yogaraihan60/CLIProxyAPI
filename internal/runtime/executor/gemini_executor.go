@@ -103,7 +103,8 @@ func (e *GeminiExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.Aut
 //   - cliproxyexecutor.Response: The response from the API
 //   - error: An error if the request fails
 func (e *GeminiExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	apiKey, bearer := geminiCreds(auth)
 
@@ -210,7 +211,8 @@ func (e *GeminiExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 
 // ExecuteStream performs a streaming request to the Gemini API.
 func (e *GeminiExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (stream <-chan cliproxyexecutor.StreamChunk, err error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	apiKey, bearer := geminiCreds(auth)
 
@@ -338,7 +340,8 @@ func (e *GeminiExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 
 // CountTokens counts tokens for the given request using the Gemini API.
 func (e *GeminiExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
-	baseModel := thinking.ParseSuffix(req.Model).ModelName
+	// Strip image suffixes from model name for API calls (e.g., gemini-3-pro-image-4k -> gemini-3-pro-image)
+	baseModel := util.ParseImageModelSuffixes(thinking.ParseSuffix(req.Model).ModelName).BaseModel
 
 	apiKey, bearer := geminiCreds(auth)
 
