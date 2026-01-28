@@ -92,7 +92,27 @@ func resolveModelAliasFromConfigModels(requestedModel string, models []modelAlia
 
 	requestResult := thinking.ParseSuffix(requestedModel)
 	base := requestResult.ModelName
-	candidates := []string{base}
+
+	// Also strip image suffixes (e.g., -4k, -2k) to find the base model for alias lookup
+	imgConfig := util.ParseImageModelSuffixes(base)
+	baseNoImageSuffix := imgConfig.BaseModel
+	imageSuffix := "" // Store the image suffix to re-add later
+	if imgConfig.ImageSize != "" {
+		// Determine the original suffix string from the model name
+		if strings.Contains(base, "-4k") {
+			imageSuffix = "-4k"
+		} else if strings.Contains(base, "-2k") {
+			imageSuffix = "-2k"
+		} else if strings.Contains(base, "-hd") {
+			imageSuffix = "-hd"
+		}
+	}
+
+	// Build candidates: base without image suffix first, then with image suffix, then full model
+	candidates := []string{baseNoImageSuffix}
+	if baseNoImageSuffix != base {
+		candidates = append(candidates, base)
+	}
 	if base != requestedModel {
 		candidates = append(candidates, requestedModel)
 	}
@@ -102,13 +122,20 @@ func resolveModelAliasFromConfigModels(requestedModel string, models []modelAlia
 		if resolved == "" {
 			return ""
 		}
+		result := resolved
+		// Add image suffix first (it's part of the model name)
+		if imageSuffix != "" {
+			result = result + imageSuffix
+		}
+		// If config already has thinking suffix, it takes priority
 		if thinking.ParseSuffix(resolved).HasSuffix {
-			return resolved
+			return result
 		}
+		// Then add thinking suffix (it's in parentheses)
 		if requestResult.HasSuffix && requestResult.RawSuffix != "" {
-			return resolved + "(" + requestResult.RawSuffix + ")"
+			result = result + "(" + requestResult.RawSuffix + ")"
 		}
-		return resolved
+		return result
 	}
 
 	for i := range models {
@@ -158,6 +185,17 @@ func resolveUpstreamModelFromAliasTable(m *Manager, auth *Auth, requestedModel, 
 	// Also strip image suffixes (e.g., -4k, -2k) to find the base model for alias lookup
 	imgConfig := util.ParseImageModelSuffixes(baseModel)
 	baseModelNoImageSuffix := imgConfig.BaseModel
+	imageSuffix := "" // Store the image suffix to re-add later
+	if imgConfig.ImageSize != "" {
+		// Determine the original suffix string from the model name
+		if strings.Contains(baseModel, "-4k") {
+			imageSuffix = "-4k"
+		} else if strings.Contains(baseModel, "-2k") {
+			imageSuffix = "-2k"
+		} else if strings.Contains(baseModel, "-hd") {
+			imageSuffix = "-hd"
+		}
+	}
 
 	// Candidate keys to match: base model without image suffix, base model with thinking suffix stripped,
 	// and raw input (handles suffix-parsing edge cases).
@@ -192,15 +230,25 @@ func resolveUpstreamModelFromAliasTable(m *Manager, auth *Auth, requestedModel, 
 			return ""
 		}
 
-		// If config already has suffix, it takes priority.
+		// If config already has suffix, it takes priority (but still add image suffix).
 		if thinking.ParseSuffix(original).HasSuffix {
+			// Add image suffix if present
+			if imageSuffix != "" {
+				return original + imageSuffix
+			}
 			return original
 		}
-		// Preserve user's thinking suffix on the resolved model.
-		if requestResult.HasSuffix && requestResult.RawSuffix != "" {
-			return original + "(" + requestResult.RawSuffix + ")"
+		// Build the final model name preserving both thinking and image suffixes
+		result := original
+		// Add image suffix first (it's part of the model name)
+		if imageSuffix != "" {
+			result = result + imageSuffix
 		}
-		return original
+		// Then add thinking suffix (it's in parentheses)
+		if requestResult.HasSuffix && requestResult.RawSuffix != "" {
+			result = result + "(" + requestResult.RawSuffix + ")"
+		}
+		return result
 	}
 
 	return ""

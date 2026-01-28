@@ -48,3 +48,18 @@ _bmad-output/*
 # macOS
 .DS_Store
 ._*
+
+# Generated images
+generated_image_*.jpg
+generated_image_*.png
+
+# Log files
+*.log
+nohup.out
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Test scripts
+generate_image.py
