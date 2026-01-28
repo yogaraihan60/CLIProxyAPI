@@ -130,19 +130,22 @@ func (e *AntigravityExecutor) Execute(ctx context.Context, auth *cliproxyauth.Au
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("antigravity")
 
+	// Get the original requested model (before alias resolution) to preserve image suffixes like -4k
+	requestedModel := payloadRequestedModel(opts, req.Model)
+
 	originalPayload := bytes.Clone(req.Payload)
 	if len(opts.OriginalRequest) > 0 {
 		originalPayload = bytes.Clone(opts.OriginalRequest)
 	}
-	originalTranslated := sdktranslator.TranslateRequest(from, to, baseModel, originalPayload, false)
-	translated := sdktranslator.TranslateRequest(from, to, baseModel, bytes.Clone(req.Payload), false)
+	// Use requestedModel for translation so image suffixes are parsed and applied to imageConfig
+	originalTranslated := sdktranslator.TranslateRequest(from, to, requestedModel, originalPayload, false)
+	translated := sdktranslator.TranslateRequest(from, to, requestedModel, bytes.Clone(req.Payload), false)
 
 	translated, err = thinking.ApplyThinking(translated, req.Model, from.String(), to.String(), e.Identifier())
 	if err != nil {
 		return resp, err
 	}
 
-	requestedModel := payloadRequestedModel(opts, req.Model)
 	translated = applyPayloadConfigWithRoot(e.cfg, baseModel, "antigravity", "request", translated, originalTranslated, requestedModel)
 
 	baseURLs := antigravityBaseURLFallbackOrder(auth)
@@ -271,19 +274,22 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("antigravity")
 
+	// Get the original requested model (before alias resolution) to preserve image suffixes like -4k
+	requestedModel := payloadRequestedModel(opts, req.Model)
+
 	originalPayload := bytes.Clone(req.Payload)
 	if len(opts.OriginalRequest) > 0 {
 		originalPayload = bytes.Clone(opts.OriginalRequest)
 	}
-	originalTranslated := sdktranslator.TranslateRequest(from, to, baseModel, originalPayload, true)
-	translated := sdktranslator.TranslateRequest(from, to, baseModel, bytes.Clone(req.Payload), true)
+	// Use requestedModel for translation so image suffixes are parsed and applied to imageConfig
+	originalTranslated := sdktranslator.TranslateRequest(from, to, requestedModel, originalPayload, false)
+	translated := sdktranslator.TranslateRequest(from, to, requestedModel, bytes.Clone(req.Payload), false)
 
 	translated, err = thinking.ApplyThinking(translated, req.Model, from.String(), to.String(), e.Identifier())
 	if err != nil {
 		return resp, err
 	}
 
-	requestedModel := payloadRequestedModel(opts, req.Model)
 	translated = applyPayloadConfigWithRoot(e.cfg, baseModel, "antigravity", "request", translated, originalTranslated, requestedModel)
 
 	baseURLs := antigravityBaseURLFallbackOrder(auth)
@@ -659,19 +665,22 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 	from := opts.SourceFormat
 	to := sdktranslator.FromString("antigravity")
 
+	// Get the original requested model (before alias resolution) to preserve image suffixes like -4k
+	requestedModel := payloadRequestedModel(opts, req.Model)
+
 	originalPayload := bytes.Clone(req.Payload)
 	if len(opts.OriginalRequest) > 0 {
 		originalPayload = bytes.Clone(opts.OriginalRequest)
 	}
-	originalTranslated := sdktranslator.TranslateRequest(from, to, baseModel, originalPayload, true)
-	translated := sdktranslator.TranslateRequest(from, to, baseModel, bytes.Clone(req.Payload), true)
+	// Use requestedModel for translation so image suffixes are parsed and applied to imageConfig
+	originalTranslated := sdktranslator.TranslateRequest(from, to, requestedModel, originalPayload, false)
+	translated := sdktranslator.TranslateRequest(from, to, requestedModel, bytes.Clone(req.Payload), false)
 
 	translated, err = thinking.ApplyThinking(translated, req.Model, from.String(), to.String(), e.Identifier())
 	if err != nil {
 		return nil, err
 	}
 
-	requestedModel := payloadRequestedModel(opts, req.Model)
 	translated = applyPayloadConfigWithRoot(e.cfg, baseModel, "antigravity", "request", translated, originalTranslated, requestedModel)
 
 	baseURLs := antigravityBaseURLFallbackOrder(auth)
