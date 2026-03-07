@@ -108,9 +108,12 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
 
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
+	executionSessionID := executionSessionIDFromOptions(opts)
+	if rebuilt, rebuiltOK, rebuildErr := rebuildResponsesRequestFromStore(body, executionSessionID); rebuildErr == nil && rebuiltOK {
+		body = rebuilt
+	}
 	body, _ = sjson.SetBytes(body, "model", baseModel)
 	body, _ = sjson.SetBytes(body, "stream", true)
-	body, _ = sjson.DeleteBytes(body, "previous_response_id")
 	body, _ = sjson.DeleteBytes(body, "prompt_cache_retention")
 	body, _ = sjson.DeleteBytes(body, "safety_identifier")
 	if !gjson.GetBytes(body, "instructions").Exists() {
@@ -165,8 +168,8 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
 		return resp, err
 	}
 	appendAPIResponseChunk(ctx, e.cfg, data)
-
 	lines := bytes.Split(data, []byte("\n"))
+
 	for _, line := range lines {
 		if !bytes.HasPrefix(line, dataTag) {
 			continue
@@ -179,6 +182,13 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
 
 		if detail, ok := parseCodexUsage(line); ok {
 			reporter.publish(ctx, detail)
+		}
+		if executionSessionID != "" || strings.TrimSpace(gjson.GetBytes(line, "response.id").String()) != "" {
+			globalResponsesStateStore.put(executionSessionID, responsesSessionState{
+				lastRequest:        append([]byte(nil), body...),
+				lastResponseOutput: responseCompletedOutputFromPayloadForExecutor(line),
+				responseID:         strings.TrimSpace(gjson.GetBytes(line, "response.id").String()),
+			})
 		}
 
 		var param any
@@ -218,6 +228,10 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
 
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
+	executionSessionID := executionSessionIDFromOptions(opts)
+	if rebuilt, rebuiltOK, rebuildErr := rebuildResponsesRequestFromStore(body, executionSessionID); rebuildErr == nil && rebuiltOK {
+		body = rebuilt
+	}
 	body, _ = sjson.SetBytes(body, "model", baseModel)
 	body, _ = sjson.DeleteBytes(body, "stream")
 
@@ -308,7 +322,10 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 
 	requestedModel := payloadRequestedModel(opts, req.Model)
 	body = applyPayloadConfigWithRoot(e.cfg, baseModel, to.String(), "", body, originalTranslated, requestedModel)
-	body, _ = sjson.DeleteBytes(body, "previous_response_id")
+	executionSessionID := executionSessionIDFromOptions(opts)
+	if rebuilt, rebuiltOK, rebuildErr := rebuildResponsesRequestFromStore(body, executionSessionID); rebuildErr == nil && rebuiltOK {
+		body = rebuilt
+	}
 	body, _ = sjson.DeleteBytes(body, "prompt_cache_retention")
 	body, _ = sjson.DeleteBytes(body, "safety_identifier")
 	body, _ = sjson.SetBytes(body, "model", baseModel)
@@ -382,6 +399,13 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 					if detail, ok := parseCodexUsage(data); ok {
 						reporter.publish(ctx, detail)
 					}
+					if executionSessionID != "" || strings.TrimSpace(gjson.GetBytes(data, "response.id").String()) != "" {
+						globalResponsesStateStore.put(executionSessionID, responsesSessionState{
+							lastRequest:        append([]byte(nil), body...),
+							lastResponseOutput: responseCompletedOutputFromPayloadForExecutor(data),
+							responseID:         strings.TrimSpace(gjson.GetBytes(data, "response.id").String()),
+						})
+					}
 				}
 			}
 
@@ -412,7 +436,6 @@ func (e *CodexExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth
 	}
 
 	body, _ = sjson.SetBytes(body, "model", baseModel)
-	body, _ = sjson.DeleteBytes(body, "previous_response_id")
 	body, _ = sjson.DeleteBytes(body, "prompt_cache_retention")
 	body, _ = sjson.DeleteBytes(body, "safety_identifier")
 	body, _ = sjson.SetBytes(body, "stream", false)
@@ -760,3 +783,9 @@ func (e *CodexExecutor) resolveCodexConfig(auth *cliproxyauth.Auth) *config.Code
 	}
 	return nil
 }
+
+
+
+
+
+

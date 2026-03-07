@@ -40,7 +40,19 @@ func init() {
 
 // Apply applies thinking configuration to iFlow request body.
 //
-// Expected output format (GLM):
+// Expected output format (GLM-5):
+//
+//	{
+//	  "chat_template_kwargs": {
+//	    "enable_thinking": true
+//	  },
+//	  "enable_thinking": true,
+//	  "thinking": {
+//	    "type": "enabled"
+//	  }
+//	}
+//
+// Expected output format (GLM-4.7):
 //
 //	{
 //	  "chat_template_kwargs": {
@@ -60,6 +72,14 @@ func (a *Applier) Apply(body []byte, config thinking.ThinkingConfig, modelInfo *
 	}
 	if modelInfo.Thinking == nil {
 		return body, nil
+	}
+
+	if isGLM5Model(modelInfo.ID) {
+		return applyGLM5Thinking(body, config), nil
+	}
+
+	if isKimiK25Model(modelInfo.ID) {
+		return applyKimiK25Thinking(body, config), nil
 	}
 
 	if isEnableThinkingModel(modelInfo.ID) {
@@ -130,6 +150,47 @@ func applyEnableThinking(body []byte, config thinking.ThinkingConfig, setClearTh
 	return result
 }
 
+// applyGLM5Thinking applies thinking configuration for GLM-5 models.
+func applyGLM5Thinking(body []byte, config thinking.ThinkingConfig) []byte {
+	enableThinking := configToBoolean(config)
+
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		body = []byte(`{}`)
+	}
+
+	result, _ := sjson.SetBytes(body, "chat_template_kwargs.enable_thinking", enableThinking)
+	result, _ = sjson.SetBytes(result, "enable_thinking", enableThinking)
+
+	if enableThinking {
+		result, _ = sjson.SetBytes(result, "thinking.type", "enabled")
+	} else {
+		result, _ = sjson.SetBytes(result, "thinking.type", "disabled")
+	}
+
+	return result
+}
+
+// applyKimiK25Thinking applies thinking configuration for Kimi K2.5 models.
+func applyKimiK25Thinking(body []byte, config thinking.ThinkingConfig) []byte {
+	enableThinking := configToBoolean(config)
+
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		body = []byte(`{}`)
+	}
+
+	// Kimi K2.5: only thinking.type field
+	if enableThinking {
+		body, _ = sjson.SetBytes(body, "thinking.type", "enabled")
+	} else {
+		body, _ = sjson.SetBytes(body, "thinking.type", "disabled")
+	}
+
+	// Explicitly remove temperature for Kimi K2.5
+	body, _ = sjson.DeleteBytes(body, "temperature")
+
+	return body
+}
+
 // applyMiniMax applies thinking configuration for MiniMax models.
 //
 // Output format:
@@ -164,6 +225,18 @@ func isEnableThinkingModel(modelID string) bool {
 // isGLMModel determines if the model is a GLM series model.
 func isGLMModel(modelID string) bool {
 	return strings.HasPrefix(strings.ToLower(modelID), "glm")
+}
+
+// isGLM5Model determines if the model is GLM-5.
+func isGLM5Model(modelID string) bool {
+	id := strings.ToLower(modelID)
+	return id == "glm-5" || strings.HasPrefix(id, "glm-5-")
+}
+
+// isKimiK25Model determines if the model is Kimi K2.5.
+func isKimiK25Model(modelID string) bool {
+	id := strings.ToLower(modelID)
+	return id == "kimi-k2.5" || strings.HasPrefix(id, "kimi-k2.5-")
 }
 
 // isMiniMaxModel determines if the model is a MiniMax series model.

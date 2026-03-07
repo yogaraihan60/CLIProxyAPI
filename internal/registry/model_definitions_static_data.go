@@ -993,6 +993,10 @@ func GetIFlowModels() []*ModelInfo {
 		{ID: "qwen3-235b-a22b-instruct", DisplayName: "Qwen3-235B-A22B-Instruct", Description: "Qwen3 235B A22B Instruct", Created: 1753401600},
 		{ID: "qwen3-235b", DisplayName: "Qwen3-235B-A22B", Description: "Qwen3 235B A22B", Created: 1753401600},
 		{ID: "iflow-rome-30ba3b", DisplayName: "iFlow-ROME", Description: "iFlow Rome 30BA3B model", Created: 1736899200},
+		{ID: "glm-5", DisplayName: "GLM-5", Description: "Zhipu GLM 5 flagship model", Created: 1770793182, Thinking: iFlowThinkingSupport},
+		{ID: "glm-4.7", DisplayName: "GLM-4.7", Description: "Zhipu GLM 4.7 reasoning model", Created: 1770793182, Thinking: iFlowThinkingSupport},
+		{ID: "kimi-k2.5", DisplayName: "Kimi-K2.5", Description: "Moonshot Kimi K2.5 reasoning model", Created: 1770118075, Thinking: iFlowThinkingSupport},
+		{ID: "minimax-m2.5", DisplayName: "MiniMax-M2.5", Description: "MiniMax M2.5 reasoning model", Created: 1770949465, Thinking: iFlowThinkingSupport},
 	}
 	models := make([]*ModelInfo, 0, len(entries))
 	for _, entry := range entries {

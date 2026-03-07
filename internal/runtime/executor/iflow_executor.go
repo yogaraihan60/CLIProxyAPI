@@ -457,9 +457,17 @@ func applyIFlowHeaders(r *http.Request, apiKey string, stream bool) {
 	r.Header.Set("Authorization", "Bearer "+apiKey)
 	r.Header.Set("User-Agent", iflowUserAgent)
 
-	// Generate session-id
+	// Generate session-id and conversation-id
 	sessionID := "session-" + generateUUID()
+	conversationID := generateUUID()
 	r.Header.Set("session-id", sessionID)
+	r.Header.Set("conversation-id", conversationID)
+
+	// Generate traceparent (W3C format)
+	traceID := strings.ReplaceAll(generateUUID(), "-", "")
+	spanID := strings.ReplaceAll(generateUUID(), "-", "")[:16]
+	traceparent := fmt.Sprintf("00-%s-%s-01", traceID, spanID)
+	r.Header.Set("traceparent", traceparent)
 
 	// Generate timestamp and signature
 	timestamp := time.Now().UnixMilli()
