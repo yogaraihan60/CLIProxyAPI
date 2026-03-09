@@ -1,6 +1,7 @@
 # Binaries
 cli-proxy-api
 *.exe
+cliproxyapi-linux-amd64
 
 # Configuration
 config.yaml
