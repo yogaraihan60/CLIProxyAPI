@@ -447,6 +447,13 @@ nonstream-keepalive-interval: 0
 #     disable-cooling: false # optional: per-provider override for auth/model cooldown scheduling
 #     headers:
 #       X-Custom-Header: "custom-value"
+#     # Inbound client request headers are forwarded to this upstream provider, in
+#     # addition to the headers above. Hop-by-hop, auth, and transport headers
+#     # (Authorization, Cookie, Content-Type, Content-Length, Host, Connection,
+#     # etc.) are stripped. Headers set here or by the executor always win over
+#     # client headers, so X-Session-Hash and similar custom headers pass through
+#     # unless overridden. This applies only to OpenAI-compatible (API-key-only)
+#     # providers; OAuth-based providers are unaffected.
 #     api-key-entries:
 #       - api-key: "sk-or-v1-...b780"
 #         weight: 5 # optional: weighted-round-robin share; omitted defaults to 1; maximum 1,000,000
