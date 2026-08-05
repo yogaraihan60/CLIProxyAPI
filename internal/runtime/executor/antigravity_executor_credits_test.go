@@ -288,6 +288,60 @@ func TestParseRetryDelay_HumanReadableDuration(t *testing.T) {
 	}
 }
 
+func TestParseRetryDelay_PlainTextResetsIn(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want time.Duration
+	}{
+		{
+			name: "individual quota reached 150h",
+			body: "Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 150h3m44s.",
+			want: 150*time.Hour + 3*time.Minute + 44*time.Second,
+		},
+		{
+			name: "resets in minutes only",
+			body: "Quota exceeded. Resets in 30m.",
+			want: 30 * time.Minute,
+		},
+		{
+			name: "resets in hours and minutes",
+			body: "Rate limited. Resets in 2h30m.",
+			want: 2*time.Hour + 30*time.Minute,
+		},
+		{
+			name: "resets in seconds",
+			body: "Too many requests. Resets in 45s.",
+			want: 45 * time.Second,
+		},
+		{
+			name: "no resets marker returns error",
+			body: "Individual quota reached. No reset info.",
+			want: 0,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			retryAfter, err := helps.ParseRetryDelay([]byte(tc.body))
+			if tc.want == 0 {
+				if err == nil {
+					t.Fatal("expected error for body without reset info")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ParseRetryDelay() error = %v", err)
+			}
+			if retryAfter == nil {
+				t.Fatal("ParseRetryDelay() returned nil")
+			}
+			if *retryAfter != tc.want {
+				t.Fatalf("ParseRetryDelay() = %v, want %v", *retryAfter, tc.want)
+			}
+		})
+	}
+}
+
 func TestAntigravityExecute_RetriesTransient429ResourceExhausted(t *testing.T) {
 	resetAntigravityCreditsRetryState()
 	t.Cleanup(resetAntigravityCreditsRetryState)

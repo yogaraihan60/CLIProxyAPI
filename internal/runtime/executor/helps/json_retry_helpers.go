@@ -76,5 +76,36 @@ func ParseRetryDelay(errorBody []byte) (*time.Duration, error) {
 		}
 	}
 
+	// Plain-text 429 bodies (no JSON envelope). Antigravity/CloudCode returns
+	// bodies like "Individual quota reached. ... Resets in 150h3m44s." — parse
+	// the "Resets in <duration>" suffix so the cooldown matches the actual
+	// upstream reset window instead of falling back to the short backoff cap.
+	if duration, ok := parsePlainTextResetDelay(errorBody); ok {
+		return &duration, nil
+	}
+
 	return nil, fmt.Errorf("no RetryInfo found")
+}
+
+// parsePlainTextResetDelay extracts a "Resets in <duration>" or "resets in <duration>"
+// marker from a plain-text error body. Supports Go duration syntax (e.g. "150h3m44s",
+// "30m", "2h30m") and the "Xh Ym Zs" space-separated variant.
+func parsePlainTextResetDelay(body []byte) (time.Duration, bool) {
+	if len(body) == 0 {
+		return 0, false
+	}
+	lower := strings.ToLower(string(body))
+	re := regexp.MustCompile(`resets?\s+in\s+((?:\d+[hms]\s*)+)`)
+	matches := re.FindStringSubmatch(lower)
+	if len(matches) < 2 {
+		return 0, false
+	}
+	raw := strings.TrimSpace(matches[1])
+	// Normalize space-separated components (e.g. "150h 3m 44s") into Go format.
+	normalized := strings.Join(strings.Fields(raw), "")
+	duration, err := time.ParseDuration(normalized)
+	if err != nil || duration <= 0 {
+		return 0, false
+	}
+	return duration, true
 }
