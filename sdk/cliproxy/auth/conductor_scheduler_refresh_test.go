@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +44,67 @@ type unauthorizedRefreshTestExecutor struct {
 
 func (e unauthorizedRefreshTestExecutor) Refresh(ctx context.Context, auth *Auth) (*Auth, error) {
 	return nil, errors.New("token refresh failed with status 401: invalid_grant")
+}
+
+// deletedAccountRefreshTestExecutor simulates a refresh failure where the
+// underlying Google account has been deleted. Google's OAuth token endpoint
+// returns this as a 400 Bad Request with an invalid_grant error.
+type deletedAccountRefreshTestExecutor struct {
+	schedulerProviderTestExecutor
+}
+
+func (e deletedAccountRefreshTestExecutor) Refresh(ctx context.Context, auth *Auth) (*Auth, error) {
+	return nil, errors.New(`bad response status code 400, message: {"error":"invalid_grant","error_description":"Account has been deleted"}, body: {"error":"invalid_grant","error_description":"Account has been deleted"}`)
+}
+
+func TestManager_RefreshAuthDeletedAccountDisablesAuth(t *testing.T) {
+	ctx := context.Background()
+	manager := NewManager(nil, &RoundRobinSelector{}, nil)
+	manager.RegisterExecutor(deletedAccountRefreshTestExecutor{
+		schedulerProviderTestExecutor: schedulerProviderTestExecutor{provider: "antigravity"},
+	})
+
+	auth := &Auth{
+		ID:       "deleted-account-refresh",
+		Provider: "antigravity",
+		Metadata: map[string]any{
+			"email": "deleted@example.com",
+		},
+	}
+	if _, errRegister := manager.Register(ctx, auth); errRegister != nil {
+		t.Fatalf("register auth: %v", errRegister)
+	}
+
+	manager.refreshAuth(ctx, auth.ID)
+
+	updated, ok := manager.GetByID(auth.ID)
+	if !ok {
+		t.Fatalf("expected auth %q after refresh", auth.ID)
+	}
+	if updated.LastError == nil {
+		t.Fatal("expected refresh failure to be recorded")
+	}
+	// A deleted account must permanently disable the auth (not just error).
+	if updated.Status != StatusDisabled {
+		t.Fatalf("Status = %q, want %q (deleted account must be disabled)", updated.Status, StatusDisabled)
+	}
+	if !updated.Unavailable {
+		t.Fatal("expected deleted account auth to be unavailable")
+	}
+	if !updated.NextRefreshAfter.IsZero() {
+		t.Fatalf("NextRefreshAfter = %s, want zero for deleted account", updated.NextRefreshAfter)
+	}
+	if updated.StatusMessage != "account deleted or grant revoked" {
+		t.Fatalf("StatusMessage = %q, want %q", updated.StatusMessage, "account deleted or grant revoked")
+	}
+	// A disabled auth must not be selected for execution.
+	now := time.Now()
+	if manager.shouldRefresh(updated, now) {
+		t.Fatal("expected deleted account auth to stop refresh attempts")
+	}
+	if _, shouldSchedule := nextRefreshCheckAt(now, updated, time.Second); shouldSchedule {
+		t.Fatal("expected deleted account auth to be removed from the auto-refresh schedule")
+	}
 }
 
 func TestManager_RefreshAuthUnauthorizedFailureStopsAutoRefreshRetry(t *testing.T) {
@@ -213,5 +275,55 @@ func TestManager_PickNext_RebuildsSchedulerAfterModelCooldownError(t *testing.T)
 	}
 	if got == nil || got.ID != newAuth.ID {
 		t.Fatalf("pickNext() auth = %v, want %q", got, newAuth.ID)
+	}
+}
+
+func TestIsPermanentInvalidGrantError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "account deleted 400",
+			err:  errors.New(`bad response status code 400, message: {"error":"invalid_grant","error_description":"Account has been deleted"}`),
+			want: true,
+		},
+		{
+			name: "refresh token revoked",
+			err:  errors.New(`status 400: {"error":"invalid_grant","error_description":"Token has been revoked"}`),
+			want: true,
+		},
+		{
+			name: "plain invalid_grant without permanent keyword",
+			err:  errors.New("token refresh failed with status 400: invalid_grant"),
+			want: false,
+		},
+		{
+			name: "unauthorized 401 invalid_grant",
+			err:  errors.New("token refresh failed with status 401: invalid_grant"),
+			want: false,
+		},
+		{
+			name: "non invalid_grant error",
+			err:  errors.New("connection refused"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isPermanentInvalidGrantError(tc.err); got != tc.want {
+				t.Fatalf("isPermanentInvalidGrantError() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	// Sanity: ensure the helper lowercases for matching.
+	if !isPermanentInvalidGrantError(errors.New(strings.ToUpper("invalid_grant: Account has been deleted"))) {
+		t.Fatal("expected uppercase 'Account has been deleted' to match")
 	}
 }

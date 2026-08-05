@@ -102,6 +102,9 @@ func synthesizeFileAuths(ctx *SynthesisContext, fullPath string, data []byte) ([
 				return nil, nil
 			}
 			perAccountExcluded := extractExcludedModelsFromMetadata(metadata)
+			// Merge skip_models (category-based skips like "gemini", "claude") into the
+			// excluded list so they are enforced at registration and routing time.
+			perAccountExcluded = append(perAccountExcluded, extractSkipModelsFromMetadata(metadata)...)
 			perAccountModelAliases := extractOAuthModelAliasesFromMetadata(metadata)
 			disabled, _ := metadata["disabled"].(bool)
 			for index, auth := range auths {
@@ -177,6 +180,9 @@ func synthesizeFileAuths(ctx *SynthesisContext, fullPath string, data []byte) ([
 
 	// Read per-account excluded models from the OAuth JSON file.
 	perAccountExcluded := extractExcludedModelsFromMetadata(metadata)
+	// Merge skip_models (category-based skips like "gemini", "claude") into the
+	// excluded list so they are enforced at registration and routing time.
+	perAccountExcluded = append(perAccountExcluded, extractSkipModelsFromMetadata(metadata)...)
 	perAccountModelAliases := extractOAuthModelAliasesFromMetadata(metadata)
 
 	a := &coreauth.Auth{
@@ -310,20 +316,7 @@ func extractExcludedModelsFromMetadata(metadata map[string]any) []string {
 	if !ok || raw == nil {
 		return nil
 	}
-	var stringSlice []string
-	switch v := raw.(type) {
-	case []string:
-		stringSlice = v
-	case []interface{}:
-		stringSlice = make([]string, 0, len(v))
-		for _, item := range v {
-			if s, ok := item.(string); ok {
-				stringSlice = append(stringSlice, s)
-			}
-		}
-	default:
-		return nil
-	}
+	stringSlice := extractStringSlice(raw)
 	result := make([]string, 0, len(stringSlice))
 	for _, s := range stringSlice {
 		if trimmed := strings.TrimSpace(s); trimmed != "" {
@@ -331,4 +324,75 @@ func extractExcludedModelsFromMetadata(metadata map[string]any) []string {
 		}
 	}
 	return result
+}
+
+// extractSkipModelsFromMetadata reads the optional "skip_models" / "skip-models"
+// field from an auth JSON file. Unlike excluded_models (which takes exact names
+// or wildcard patterns), skip_models accepts short category names that expand to
+// wildcard patterns covering all models in that category.
+//
+// Supported categories:
+//   - "gemini"  → "gemini-*"
+//   - "claude"  → "claude-*"
+//   - "gpt-oss" → "gpt-oss-*"
+//
+// Any entry that already contains a wildcard ("*") or does not match a known
+// category is passed through unchanged so users can mix categories with
+// explicit patterns.
+func extractSkipModelsFromMetadata(metadata map[string]any) []string {
+	if metadata == nil {
+		return nil
+	}
+	raw, ok := metadata["skip_models"]
+	if !ok {
+		raw, ok = metadata["skip-models"]
+	}
+	if !ok || raw == nil {
+		return nil
+	}
+	stringSlice := extractStringSlice(raw)
+	result := make([]string, 0, len(stringSlice))
+	for _, s := range stringSlice {
+		trimmed := strings.TrimSpace(s)
+		if trimmed == "" {
+			continue
+		}
+		result = append(result, expandSkipModelCategory(trimmed))
+	}
+	return result
+}
+
+// skipModelCategories maps short category names to wildcard patterns.
+var skipModelCategories = map[string]string{
+	"gemini":  "gemini-*",
+	"claude":  "claude-*",
+	"gpt-oss": "gpt-oss-*",
+	"gpt_oss": "gpt-oss-*",
+}
+
+func expandSkipModelCategory(value string) string {
+	if strings.Contains(value, "*") {
+		return value
+	}
+	if expanded, ok := skipModelCategories[strings.ToLower(value)]; ok {
+		return expanded
+	}
+	return value
+}
+
+func extractStringSlice(raw any) []string {
+	switch v := raw.(type) {
+	case []string:
+		return v
+	case []interface{}:
+		stringSlice := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				stringSlice = append(stringSlice, s)
+			}
+		}
+		return stringSlice
+	default:
+		return nil
+	}
 }

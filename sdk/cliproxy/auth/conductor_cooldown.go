@@ -1259,6 +1259,38 @@ func isInvalidGrantError(err error) bool {
 	return isInvalidGrantErrorMessage(err.Error())
 }
 
+// permanentInvalidGrantKeywords lists substrings that indicate the OAuth
+// refresh token is permanently unusable (the underlying account was deleted
+// or the grant was revoked). Unlike a transient invalid_grant, these never
+// recover, so the auth should be disabled and removed from the refresh
+// scheduler instead of being retried with backoff.
+var permanentInvalidGrantKeywords = []string{
+	"account has been deleted",
+	"account_deleted",
+	"deleted_account",
+	"refresh_token_revoked",
+	"token has been revoked",
+	"revoked",
+}
+
+// isPermanentInvalidGrantError reports whether err is an invalid_grant that
+// cannot recover (e.g. the Google account was deleted or the grant revoked).
+func isPermanentInvalidGrantError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if !isInvalidGrantErrorMessage(err.Error()) {
+		return false
+	}
+	raw := strings.ToLower(err.Error())
+	for _, keyword := range permanentInvalidGrantKeywords {
+		if strings.Contains(raw, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
 func isInvalidGrantResultError(err *Error) bool {
 	if err == nil {
 		return false

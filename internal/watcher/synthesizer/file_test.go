@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -786,5 +787,118 @@ func TestFileSynthesizer_Synthesize_NoteParsing(t *testing.T) {
 				t.Fatalf("expected note attribute to be absent, got %q", value)
 			}
 		})
+	}
+}
+
+func TestExtractSkipModelsFromMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata map[string]any
+		want     []string
+	}{
+		{
+			name:     "nil metadata",
+			metadata: nil,
+			want:     nil,
+		},
+		{
+			name:     "no skip_models key",
+			metadata: map[string]any{"email": "x@example.com"},
+			want:     nil,
+		},
+		{
+			name:     "gemini category expands to wildcard",
+			metadata: map[string]any{"skip_models": []interface{}{"gemini"}},
+			want:     []string{"gemini-*"},
+		},
+		{
+			name:     "claude category expands to wildcard",
+			metadata: map[string]any{"skip_models": []interface{}{"claude"}},
+			want:     []string{"claude-*"},
+		},
+		{
+			name:     "gpt-oss category expands to wildcard",
+			metadata: map[string]any{"skip_models": []interface{}{"gpt-oss"}},
+			want:     []string{"gpt-oss-*"},
+		},
+		{
+			name:     "multiple categories",
+			metadata: map[string]any{"skip_models": []interface{}{"gemini", "claude"}},
+			want:     []string{"gemini-*", "claude-*"},
+		},
+		{
+			name:     "explicit wildcard passthrough",
+			metadata: map[string]any{"skip_models": []interface{}{"gemini-3-flash"}},
+			want:     []string{"gemini-3-flash"},
+		},
+		{
+			name:     "mixed category and explicit",
+			metadata: map[string]any{"skip_models": []interface{}{"gemini", "claude-sonnet-4-6"}},
+			want:     []string{"gemini-*", "claude-sonnet-4-6"},
+		},
+		{
+			name:     "hyphenated key skip-models",
+			metadata: map[string]any{"skip-models": []interface{}{"claude"}},
+			want:     []string{"claude-*"},
+		},
+		{
+			name:     "string slice format",
+			metadata: map[string]any{"skip_models": []string{"gemini", "claude"}},
+			want:     []string{"gemini-*", "claude-*"},
+		},
+		{
+			name:     "empty values ignored",
+			metadata: map[string]any{"skip_models": []interface{}{"", "  ", "gemini"}},
+			want:     []string{"gemini-*"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractSkipModelsFromMetadata(tc.metadata)
+			if len(got) != len(tc.want) {
+				t.Fatalf("extractSkipModelsFromMetadata() = %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("extractSkipModelsFromMetadata()[%d] = %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestSynthesizeAuthFileSkipModelsMergedIntoExcluded(t *testing.T) {
+	tempDir := t.TempDir()
+	fullPath := filepath.Join(tempDir, "antigravity-test.json")
+	// Auth file with skip_models set to ["gemini", "claude"] — these should
+	// expand to "gemini-*" and "claude-*" and be merged into excluded_models.
+	raw := []byte(`{"type":"antigravity","email":"test@example.com","access_token":"tok","refresh_token":"rt","skip_models":["gemini","claude"]}`)
+	if err := os.WriteFile(fullPath, raw, 0o644); err != nil {
+		t.Fatalf("write auth file: %v", err)
+	}
+
+	ctx := &SynthesisContext{
+		Config:  &config.Config{},
+		AuthDir: tempDir,
+		Now:     time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC),
+	}
+	synth := NewFileSynthesizer()
+	auths, err := synth.Synthesize(ctx)
+	if err != nil {
+		t.Fatalf("Synthesize error: %v", err)
+	}
+	if len(auths) != 1 {
+		t.Fatalf("expected 1 auth, got %d", len(auths))
+	}
+	excluded := auths[0].Attributes["excluded_models"]
+	if excluded == "" {
+		t.Fatal("expected excluded_models attribute to be set")
+	}
+	// Both gemini-* and claude-* should be present in the comma-separated list.
+	if !strings.Contains(excluded, "gemini-*") {
+		t.Fatalf("excluded_models = %q, want it to contain gemini-*", excluded)
+	}
+	if !strings.Contains(excluded, "claude-*") {
+		t.Fatalf("excluded_models = %q, want it to contain claude-*", excluded)
 	}
 }

@@ -218,6 +218,21 @@ func TestClassifyAntigravity429(t *testing.T) {
 			t.Fatalf("classifyAntigravity429() = %q, want %q", got, antigravity429SoftRateLimit)
 		}
 	})
+
+	t.Run("plain text individual quota reached is quota exhausted", func(t *testing.T) {
+		// Antigravity/CloudCode may return a plain-text 429 body without a JSON
+		// envelope when an individual account quota is reached. This must be
+		// classified as full quota exhaustion so the auth is cooled down and the
+		// conductor switches to another auth instead of retrying the same one.
+		body := []byte(`Individual quota reached.`)
+		if got := classifyAntigravity429(body); got != antigravity429QuotaExhausted {
+			t.Fatalf("classifyAntigravity429() = %q, want %q", got, antigravity429QuotaExhausted)
+		}
+		decision := decideAntigravity429(body)
+		if decision.kind != antigravity429DecisionFullQuotaExhausted {
+			t.Fatalf("decideAntigravity429().kind = %q, want %q", decision.kind, antigravity429DecisionFullQuotaExhausted)
+		}
+	})
 }
 
 func TestAntigravityShouldRetryNoCapacity_Standard503(t *testing.T) {

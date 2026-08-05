@@ -536,11 +536,23 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 	now := time.Now()
 	if err != nil {
 		unauthorized := isUnauthorizedError(err)
+		permanentInvalidGrant := isPermanentInvalidGrantError(err)
 		shouldReschedule := false
 		m.mu.Lock()
 		if current := m.auths[id]; current != nil {
 			current.LastError = refreshErrorFromError(err)
-			if unauthorized {
+			if permanentInvalidGrant {
+				// The underlying account was deleted or the grant was revoked.
+				// This is unrecoverable: disable the auth permanently and stop
+				// scheduling refresh attempts so we don't keep hammering the
+				// token endpoint with a dead refresh token.
+				current.NextRefreshAfter = time.Time{}
+				current.Unavailable = true
+				current.Status = StatusDisabled
+				current.StatusMessage = "account deleted or grant revoked"
+				current.UpdatedAt = now
+				log.Warnf("refresh disabled auth %s (%s): account deleted or grant revoked", current.Provider, current.ID)
+			} else if unauthorized {
 				current.NextRefreshAfter = time.Time{}
 				current.Unavailable = true
 				current.Status = StatusError
@@ -549,7 +561,12 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 				current.NextRefreshAfter = now.Add(refreshFailureBackoff)
 			}
 			m.auths[id] = current
-			shouldReschedule = true
+			if permanentInvalidGrant {
+				// Don't reschedule refresh for a permanently dead account.
+				shouldReschedule = false
+			} else {
+				shouldReschedule = true
+			}
 			if m.scheduler != nil {
 				m.scheduler.upsertAuth(current.Clone())
 			}
@@ -557,6 +574,8 @@ func (m *Manager) refreshAuthForRequest(ctx context.Context, id, failedAccessTok
 		m.mu.Unlock()
 		if shouldReschedule {
 			m.queueRefreshReschedule(id)
+		} else if permanentInvalidGrant {
+			m.queueRefreshUnschedule(id)
 		}
 		return nil, err
 	}

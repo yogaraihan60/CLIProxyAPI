@@ -60,6 +60,11 @@ var (
 	antigravityQuotaExhaustedKeywords = []string{
 		"quota_exhausted",
 		"quota exhausted",
+		// Antigens/CloudCode may return a plain-text 429 body (no JSON envelope)
+		// when an individual account quota is reached. Treat these as full quota
+		// exhaustion so the auth is cooled down and the conductor switches to
+		// another auth instead of retrying the same one.
+		"individual quota reached",
 	}
 )
 
@@ -223,6 +228,19 @@ func decideAntigravity429(body []byte) antigravity429Decision {
 		decision.retryAfter = retryAfter
 	}
 
+	// Plain-text 429 bodies (no JSON envelope) are checked first. Antigravity
+	// may return a plain-text body such as "Individual quota reached." when an
+	// individual account quota is hit; treat these as full quota exhaustion so
+	// the auth is cooled down and the conductor switches to another auth.
+	lowerBody := strings.ToLower(string(body))
+	for _, keyword := range antigravityQuotaExhaustedKeywords {
+		if strings.Contains(lowerBody, keyword) {
+			decision.kind = antigravity429DecisionFullQuotaExhausted
+			decision.reason = "quota_exhausted"
+			return decision
+		}
+	}
+
 	status := strings.TrimSpace(gjson.GetBytes(body, "error.status").String())
 	if !strings.EqualFold(status, "RESOURCE_EXHAUSTED") {
 		return decision
@@ -255,15 +273,6 @@ func decideAntigravity429(body []byte) antigravity429Decision {
 				}
 				return decision
 			}
-		}
-	}
-
-	lowerBody := strings.ToLower(string(body))
-	for _, keyword := range antigravityQuotaExhaustedKeywords {
-		if strings.Contains(lowerBody, keyword) {
-			decision.kind = antigravity429DecisionFullQuotaExhausted
-			decision.reason = "quota_exhausted"
-			return decision
 		}
 	}
 
