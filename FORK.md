@@ -96,21 +96,22 @@ Antigravity's plain-text 429 responses include a human-readable reset time like 
 
 ### 4. Auto-Refresh Loop Fix for Disabled Auths
 
-**Uncommitted** — `fix(auth): prevent infinite refresh loop for disabled auths`
+**Commit:** `1a2f7046` — `fix(auth): prevent infinite refresh loop for disabled auths`
 
 The auto-refresh worker unconditionally re-queued auths after every refresh attempt, even when the refresh permanently disabled the auth (e.g., deleted account). This caused an infinite loop of refresh attempts against dead credentials.
 
-**Fix:** The worker now checks the auth's status after refresh and skips the re-queue if the auth is now `StatusDisabled`.
+**Fix:** The worker now checks the auth's status after refresh and skips the re-queue if the auth is now `StatusDisabled`. Additionally, `shouldRefresh()` and `nextRefreshCheckAt()` now return `false` for disabled auths.
 
 **Files changed:**
 - `sdk/cliproxy/auth/auto_refresh_loop.go`
 - `sdk/cliproxy/auth/auto_refresh_loop_test.go`
+- `sdk/cliproxy/auth/conductor_refresh.go`
 
 ---
 
 ### 5. Auto-Add `skip_models` on Quota Exhaustion
 
-**Uncommitted** — `feat(auth): auto-add skip_models category on 429 quota exhaustion`
+**Commit:** `1a2f7046` — `feat(auth): auto-add skip_models category on 429 quota exhaustion`
 
 When a 429 quota-exceeded response is received for a model, the model's category is automatically added to the auth's `skip_models` metadata and persisted to the auth JSON file.
 
@@ -177,5 +178,4 @@ go test ./...
 | `eacbba4e` | Forward client headers to OpenAI-compatible upstreams |
 | `25489532` | Classify plain-text 429 quota, auto-disable deleted accounts, add skip_models |
 | `2c83b74d` | Parse 'Resets in Xh Ym Zs' from plain-text 429 bodies |
-| *(uncommitted)* | Fix infinite refresh loop for disabled auths |
-| *(uncommitted)* | Auto-add skip_models category on 429 quota exhaustion |
+| `1a2f7046` | Fix infinite refresh loop for disabled auths; auto-add skip_models on 429 |
