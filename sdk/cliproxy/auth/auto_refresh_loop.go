@@ -85,6 +85,20 @@ func (l *authAutoRefreshLoop) worker(ctx context.Context) {
 				continue
 			}
 			l.manager.refreshAuth(ctx, authID)
+			// Skip the unconditional re-queue when the refresh just permanently
+			// disabled the auth (e.g. deleted account / revoked grant). Re-queuing
+			// a disabled auth would re-add it to the dirty set and undo the
+			// unschedule, producing an infinite refresh loop against a dead
+			// credential.
+			if l.manager != nil {
+				l.manager.mu.RLock()
+				current := l.manager.auths[authID]
+				disabled := current == nil || current.Disabled || current.Status == StatusDisabled
+				l.manager.mu.RUnlock()
+				if disabled {
+					continue
+				}
+			}
 			l.queueReschedule(authID)
 		}
 	}
@@ -337,6 +351,13 @@ func (l *authAutoRefreshLoop) remove(authID string) {
 
 func nextRefreshCheckAt(now time.Time, auth *Auth, interval time.Duration) (time.Time, bool) {
 	if auth == nil {
+		return time.Time{}, false
+	}
+	// A permanently disabled auth (e.g. deleted account / revoked grant) must
+	// never be re-scheduled for refresh. Without this guard the auto-refresh
+	// worker re-queues the auth after every failed refresh attempt, producing
+	// an infinite loop of token-endpoint calls against a dead credential.
+	if auth.Disabled || auth.Status == StatusDisabled {
 		return time.Time{}, false
 	}
 	if hasUnauthorizedAuthFailure(auth) {

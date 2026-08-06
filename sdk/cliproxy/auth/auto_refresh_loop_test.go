@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -52,13 +55,11 @@ func TestNextRefreshCheckAt_DisabledUnschedule(t *testing.T) {
 		},
 	}
 
-	got, ok := nextRefreshCheckAt(now, auth, 15*time.Minute)
-	if !ok {
-		t.Fatalf("nextRefreshCheckAt() ok = false, want true")
-	}
-	want := expiry.Add(-lead)
-	if !got.Equal(want) {
-		t.Fatalf("nextRefreshCheckAt() = %s, want %s", got, want)
+	// A disabled auth must never be scheduled for refresh, even when it has a
+	// valid expiry and a configured refresh lead. This prevents the
+	// auto-refresh loop from infinitely retrying refresh on dead credentials.
+	if _, ok := nextRefreshCheckAt(now, auth, 15*time.Minute); ok {
+		t.Fatalf("nextRefreshCheckAt() ok = true, want false for disabled auth")
 	}
 }
 
@@ -155,5 +156,83 @@ func TestNextRefreshCheckAt_RefreshEvaluatorFallback(t *testing.T) {
 	want := now.Add(interval)
 	if !got.Equal(want) {
 		t.Fatalf("nextRefreshCheckAt() = %s, want %s", got, want)
+	}
+}
+
+// deletedAccountWorkerExecutor simulates a refresh that always fails with a
+// permanent invalid_grant (deleted account). Used to verify the auto-refresh
+// worker does not re-queue the auth after disabling it.
+type deletedAccountWorkerExecutor struct {
+	schedulerProviderTestExecutor
+	mu        sync.Mutex
+	callCount int
+}
+
+func (e *deletedAccountWorkerExecutor) Refresh(ctx context.Context, auth *Auth) (*Auth, error) {
+	e.mu.Lock()
+	e.callCount++
+	e.mu.Unlock()
+	return nil, errors.New(`bad response status code 400, message: {"error":"invalid_grant","error_description":"Account has been deleted"}`)
+}
+
+func (e *deletedAccountWorkerExecutor) calls() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.callCount
+}
+
+func TestWorker_DoesNotRequeueDisabledAuth(t *testing.T) {
+	exec := &deletedAccountWorkerExecutor{
+		schedulerProviderTestExecutor: schedulerProviderTestExecutor{provider: "antigravity"},
+	}
+	manager := NewManager(nil, &RoundRobinSelector{}, nil)
+	manager.RegisterExecutor(exec)
+
+	auth := &Auth{
+		ID:       "worker-disabled-loop",
+		Provider: "antigravity",
+		Metadata: map[string]any{
+			"email": "deleted@example.com",
+		},
+	}
+	ctx := context.Background()
+	if _, errRegister := manager.Register(ctx, auth); errRegister != nil {
+		t.Fatalf("register auth: %v", errRegister)
+	}
+
+	loop := newAuthAutoRefreshLoop(manager, time.Second, 1)
+	loopCtx, loopCancel := context.WithCancel(ctx)
+	defer loopCancel()
+
+	// Simulate what happens when the loop dispatches a refresh job for this
+	// auth: the worker calls refreshAuth, which disables the auth, then the
+	// worker must NOT re-queue it.
+	loop.jobs <- auth.ID
+	go loop.worker(loopCtx)
+
+	// Give the worker time to process the job.
+	time.Sleep(200 * time.Millisecond)
+
+	// The auth should have been refreshed exactly once (the job we sent).
+	if got := exec.calls(); got != 1 {
+		t.Fatalf("Refresh called %d times, want 1", got)
+	}
+
+	// The auth must be disabled.
+	updated, ok := manager.GetByID(auth.ID)
+	if !ok {
+		t.Fatal("expected auth to still exist")
+	}
+	if updated.Status != StatusDisabled {
+		t.Fatalf("Status = %q, want %q", updated.Status, StatusDisabled)
+	}
+
+	// The dirty set must NOT contain the auth ID — if it does, applyDirty
+	// would re-queue it and the loop would repeat forever.
+	loop.mu.Lock()
+	_, isDirty := loop.dirty[auth.ID]
+	loop.mu.Unlock()
+	if isDirty {
+		t.Fatal("auth was re-queued to dirty set after being disabled; this causes an infinite refresh loop")
 	}
 }

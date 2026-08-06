@@ -308,3 +308,71 @@ func TestJitteredCooldownWaitBounds(t *testing.T) {
 		t.Fatalf("expected sub-4ns wait to stay unchanged, got %v", got)
 	}
 }
+
+func TestAutoAddSkipModelCategory(t *testing.T) {
+	tests := []struct {
+		name     string
+		model    string
+		existing []string
+		want     []string
+	}{
+		{name: "claude model", model: "claude-opus-4-6-thinking", want: []string{"claude"}},
+		{name: "gemini model", model: "gemini-3-flash", want: []string{"gemini"}},
+		{name: "gpt-oss model", model: "gpt-oss-120b-medium", want: []string{"gpt-oss"}},
+		{name: "unknown model", model: "some-model", want: []string{"some"}},
+		{name: "empty model", model: "", want: nil},
+		{name: "already present", model: "claude-sonnet-4-6", existing: []string{"claude"}, want: []string{"claude"}},
+		{name: "append to existing", model: "claude-opus-4-6-thinking", existing: []string{"gemini"}, want: []string{"gemini", "claude"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			auth := &Auth{ID: "test-auth", Metadata: map[string]any{}}
+			if tc.existing != nil {
+				auth.Metadata["skip_models"] = tc.existing
+			}
+			autoAddSkipModelCategory(auth, tc.model)
+			raw, ok := auth.Metadata["skip_models"]
+			if tc.want == nil {
+				if ok {
+					t.Fatalf("skip_models should not be set for empty model, got %v", raw)
+				}
+				return
+			}
+			if !ok {
+				t.Fatal("skip_models not set")
+			}
+			got := extractStringSliceFromAny(raw)
+			if len(got) != len(tc.want) {
+				t.Fatalf("skip_models = %v, want %v", got, tc.want)
+			}
+			for i, v := range tc.want {
+				if got[i] != v {
+					t.Fatalf("skip_models[%d] = %q, want %q", i, got[i], v)
+				}
+			}
+		})
+	}
+}
+
+func TestModelCategoryFromModel(t *testing.T) {
+	tests := []struct {
+		model string
+		want  string
+	}{
+		{"claude-opus-4-6-thinking", "claude"},
+		{"claude-sonnet-4-6", "claude"},
+		{"gemini-3-flash", "gemini"},
+		{"gemini-3.6-flash-high", "gemini"},
+		{"gpt-oss-120b-medium", "gpt-oss"},
+		{"some-model", "some"},
+		{"nomodel", "nomodel"},
+		{"", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.model, func(t *testing.T) {
+			if got := modelCategoryFromModel(tc.model); got != tc.want {
+				t.Fatalf("modelCategoryFromModel(%q) = %q, want %q", tc.model, got, tc.want)
+			}
+		})
+	}
+}

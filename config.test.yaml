@@ -1,0 +1,14 @@
+host: "127.0.0.1"
+port: 8319
+
+auth-dir: "./auths"
+
+api-keys:
+  - "test-key-local"
+
+quota-exceeded:
+  antigravity-credits: true
+
+save-cooldown-status: false
+
+debug: true

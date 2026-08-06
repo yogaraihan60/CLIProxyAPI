@@ -115,6 +115,12 @@ func (m *Manager) shouldRefresh(a *Auth, now time.Time) bool {
 	if a == nil {
 		return false
 	}
+	// A permanently disabled auth must not be considered due for refresh.
+	// This prevents the auto-refresh loop from repeatedly dispatching refresh
+	// jobs for deleted/revoked accounts.
+	if a.Disabled || a.Status == StatusDisabled {
+		return false
+	}
 	if hasUnauthorizedAuthFailure(a) {
 		return false
 	}

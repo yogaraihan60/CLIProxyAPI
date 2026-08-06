@@ -15,6 +15,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/thinking"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	log "github.com/sirupsen/logrus"
 )
 
 var quotaCooldownDisabled atomic.Bool
@@ -827,6 +828,9 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 								suspendReason = "quota"
 								shouldSuspendModel = true
 								setModelQuota = true
+								// Auto-add the model category to skip_models so this auth
+								// is permanently excluded from the exhausted category.
+								autoAddSkipModelCategory(auth, result.Model)
 							}
 						case 408, 500, 502, 503, 504:
 							state.NextRetryAfter = recoverableFailureRetryAfter(now, disableCooling)
@@ -1085,6 +1089,76 @@ func clearAuthStateOnSuccess(auth *Auth, now time.Time) {
 	auth.LastError = nil
 	auth.NextRetryAfter = time.Time{}
 	auth.UpdatedAt = now
+}
+
+// autoAddSkipModelCategory extracts the category prefix from a model name
+// (e.g. "claude" from "claude-opus-4-6-thinking") and appends it to the
+// auth's skip_models metadata so the auth is permanently excluded from that
+// category on next load. This prevents the scheduler from repeatedly selecting
+// an auth for a model category that has already exhausted its quota.
+func autoAddSkipModelCategory(auth *Auth, model string) {
+	if auth == nil || model == "" {
+		return
+	}
+	category := modelCategoryFromModel(model)
+	if category == "" {
+		return
+	}
+	if auth.Metadata == nil {
+		auth.Metadata = make(map[string]any)
+	}
+	// Read existing skip_models.
+	var existing []string
+	if raw, ok := auth.Metadata["skip_models"]; ok {
+		existing = extractStringSliceFromAny(raw)
+	}
+	// Check if already present (case-insensitive).
+	for _, s := range existing {
+		if strings.EqualFold(strings.TrimSpace(s), category) {
+			return
+		}
+	}
+	existing = append(existing, category)
+	auth.Metadata["skip_models"] = existing
+	log.Debugf("auto-added skip_models category %q for auth %s after quota exhaustion on model %s", category, auth.ID, model)
+}
+
+// modelCategoryFromModel extracts the category prefix from a model name.
+// For example, "claude-opus-4-6-thinking" returns "claude", "gemini-3-flash"
+// returns "gemini", "gpt-oss-120b-medium" returns "gpt-oss".
+func modelCategoryFromModel(model string) string {
+	if model == "" {
+		return ""
+	}
+	// Known category prefixes.
+	for _, prefix := range []string{"claude", "gemini", "gpt-oss"} {
+		if strings.HasPrefix(model, prefix+"-") || model == prefix {
+			return prefix
+		}
+	}
+	// Fallback: use the first segment before the first hyphen.
+	if idx := strings.Index(model, "-"); idx > 0 {
+		return model[:idx]
+	}
+	return model
+}
+
+// extractStringSliceFromAny converts a metadata value to a string slice.
+func extractStringSliceFromAny(raw any) []string {
+	switch v := raw.(type) {
+	case []string:
+		return v
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 func cloneError(err *Error) *Error {
