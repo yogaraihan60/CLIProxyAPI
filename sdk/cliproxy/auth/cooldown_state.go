@@ -34,6 +34,11 @@ type CooldownStateRecord struct {
 	// CredentialQuotaPropagated preserves wrap provenance for models that
 	// carry no independent layer (e.g. the reporting model itself).
 	CredentialQuotaPropagated bool `json:"credential_quota_propagated,omitempty"`
+
+	// AntigravityQuotaSummary carries the upstream quota summary hint for
+	// antigravity auths so proactive skipping survives restarts. Only present
+	// on auth-level records (Model == "") for antigravity providers.
+	AntigravityQuotaSummary *AntigravityQuotaSummaryHint `json:"antigravity_quota_summary,omitempty"`
 }
 
 // CooldownStateStore persists runtime cooldown state independently from auth tokens.
