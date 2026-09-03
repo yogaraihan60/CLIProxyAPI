@@ -624,6 +624,7 @@ func main() {
 	redisqueue.SetUsageStatisticsEnabled(cfg.UsageStatisticsEnabled)
 	redisqueue.SetRetentionSeconds(cfg.RedisUsageQueueRetentionSeconds)
 	coreauth.SetQuotaCooldownDisabled(cfg.DisableCooling)
+	coreauth.SetAntigravityQuotaSkipEnabled(cfg.QuotaExceeded.AntigravityQuotaSkipEnabled())
 	coreauth.SetTransientErrorCooldownSeconds(cfg.TransientErrorCooldownSeconds)
 
 	if err = logging.ConfigureLogOutput(cfg); err != nil {

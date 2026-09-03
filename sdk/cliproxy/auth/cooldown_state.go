@@ -27,6 +27,11 @@ type CooldownStateRecord struct {
 	Quota          QuotaState `json:"quota,omitempty"`
 	LastError      *Error     `json:"last_error,omitempty"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+
+	// AntigravityQuotaSummary carries the upstream quota summary hint for
+	// antigravity auths so proactive skipping survives restarts. Only present
+	// on auth-level records (Model == "") for antigravity providers.
+	AntigravityQuotaSummary *AntigravityQuotaSummaryHint `json:"antigravity_quota_summary,omitempty"`
 }
 
 // CooldownStateStore persists runtime cooldown state independently from auth tokens.

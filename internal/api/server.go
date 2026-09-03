@@ -198,6 +198,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	}
 	managementasset.SetCurrentConfig(cfg)
 	auth.SetQuotaCooldownDisabled(cfg.DisableCooling)
+	auth.SetAntigravityQuotaSkipEnabled(cfg.QuotaExceeded.AntigravityQuotaSkipEnabled())
 	auth.SetTransientErrorCooldownSeconds(cfg.TransientErrorCooldownSeconds)
 	applySignatureCacheConfig(nil, cfg)
 	// Initialize management handler

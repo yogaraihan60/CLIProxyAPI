@@ -169,6 +169,7 @@ func (e *AntigravityExecutor) Execute(ctx context.Context, auth *cliproxyauth.Au
 			if useCredits && antigravityHasExplicitCreditsBalanceExhaustedReason(bodyBytes) && !antigravityCoolingDisabled(auth, e.cfg) {
 				markAntigravityCreditsPermanentlyDisabled(auth)
 			}
+			e.markAntigravityQuotaExhausted(ctx, auth)
 			// No credits logic - just fall through to error return below
 		}
 	}
@@ -179,7 +180,7 @@ func (e *AntigravityExecutor) Execute(ctx context.Context, auth *cliproxyauth.Au
 			// Report the upstream failure rather than the cleanup failure.
 			logAntigravityReasoningReplayDegraded(replayScope, "invalidate", errClear)
 		}
-		err = newAntigravityStatusErr(httpResp.StatusCode, bodyBytes)
+		err = e.withAntigravityQuotaRetryAfter(auth, baseModel, newAntigravityStatusErr(httpResp.StatusCode, bodyBytes))
 		return resp, err
 	}
 
@@ -384,6 +385,7 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 				if useCredits && antigravityHasExplicitCreditsBalanceExhaustedReason(bodyBytes) && !antigravityCoolingDisabled(auth, e.cfg) {
 					markAntigravityCreditsPermanentlyDisabled(auth)
 				}
+				e.markAntigravityQuotaExhausted(ctx, auth)
 				// No credits logic - just fall through to error return below
 			}
 		}
@@ -392,7 +394,7 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 			// Report the upstream failure rather than the cleanup failure.
 			logAntigravityReasoningReplayDegraded(replayScope, "invalidate", errClear)
 		}
-		err = newAntigravityStatusErr(httpResp.StatusCode, bodyBytes)
+		err = e.withAntigravityQuotaRetryAfter(auth, baseModel, newAntigravityStatusErr(httpResp.StatusCode, bodyBytes))
 		return resp, err
 	}
 
