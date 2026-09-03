@@ -93,3 +93,66 @@ func applyCustomHeaders(r *http.Request, headers map[string]string) {
 		r.Header.Set(k, v)
 	}
 }
+
+// forwardClientHeadersSkip lists headers that must not be forwarded from
+// inbound client requests to upstream providers. These are hop-by-hop
+// (RFC 7230 Section 6.1), security-sensitive, or CPA-managed headers.
+var forwardClientHeadersSkip = map[string]struct{}{
+	// Hop-by-hop (RFC 7230 Section 6.1)
+	"Connection":          {},
+	"Keep-Alive":          {},
+	"Proxy-Authenticate":  {},
+	"Proxy-Authorization": {},
+	"Te":                  {},
+	"Trailer":             {},
+	"Transfer-Encoding":   {},
+	"Upgrade":             {},
+	// Security-sensitive / auth
+	"Authorization":   {},
+	"Cookie":          {},
+	"Set-Cookie":      {},
+	"X-Api-Key":       {},
+	"X-Goog-Api-Key":  {},
+	"Accept-Encoding": {},
+	// CPA-managed / transport
+	"Content-Length":   {},
+	"Content-Encoding": {},
+	"Content-Type":     {},
+	"Host":             {},
+}
+
+// ForwardClientHeaders copies inbound client request headers to the upstream
+// request, skipping hop-by-hop, security-sensitive, and CPA-managed headers.
+// Headers already set on the upstream request (by the executor or config) are
+// preserved and not overwritten, so caller-managed headers always win.
+func ForwardClientHeaders(upstream *http.Request, client http.Header) {
+	if upstream == nil || len(client) == 0 {
+		return
+	}
+	scoped := make(map[string]struct{})
+	for _, rawValue := range client.Values("Connection") {
+		for _, token := range strings.Split(rawValue, ",") {
+			headerName := strings.TrimSpace(token)
+			if headerName == "" {
+				continue
+			}
+			scoped[http.CanonicalHeaderKey(headerName)] = struct{}{}
+		}
+	}
+	for key, values := range client {
+		canonicalKey := http.CanonicalHeaderKey(key)
+		if _, skip := forwardClientHeadersSkip[canonicalKey]; skip {
+			continue
+		}
+		if _, scopedHeader := scoped[canonicalKey]; scopedHeader {
+			continue
+		}
+		// Don't overwrite headers already set by the executor or config.
+		if upstream.Header.Get(key) != "" {
+			continue
+		}
+		for _, v := range values {
+			upstream.Header.Add(key, v)
+		}
+	}
+}
