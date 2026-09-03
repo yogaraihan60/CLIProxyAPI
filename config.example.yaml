@@ -1205,3 +1205,8 @@ plugins:
 #     switch-project: true
 #     switch-preview-model: true
 # antigravity-credits moved to oauth.providers.antigravity.antigravity-credits.
+# antigravity-quota-skip remains under quota-exceeded: when true, proactively skip
+# antigravity auths whose upstream quota summary reports a fully depleted bucket
+# for the requested model (avoids retrying depleted accounts).
+#   quota-exceeded:
+#     antigravity-quota-skip: true
