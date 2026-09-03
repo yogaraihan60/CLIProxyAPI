@@ -1,5 +1,6 @@
 # Binaries
 cli-proxy-api
+cli-proxy-api-linux*
 *.exe
 
 # Configuration
@@ -56,6 +57,8 @@ _bmad/*
 _bmad-output/*
 .gocache/
 .gitnexus/
+.commandcode/
+.zcode/
 
 # macOS
 .DS_Store
