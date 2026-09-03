@@ -310,10 +310,15 @@ func (m *Manager) RestoreCooldownStates(ctx context.Context) error {
 
 	now := time.Now()
 	authLevelRecords := make([]CooldownStateRecord, 0)
+	quotaSummaryRecords := make([]CooldownStateRecord, 0)
 	snapshotsByID := make(map[string]*Auth)
 
 	m.mu.Lock()
 	for _, record := range records {
+		if record.AntigravityQuotaSummary != nil {
+			quotaSummaryRecords = append(quotaSummaryRecords, record)
+			continue
+		}
 		if strings.TrimSpace(record.Model) == "" {
 			authLevelRecords = append(authLevelRecords, record)
 			continue
@@ -332,6 +337,18 @@ func (m *Manager) RestoreCooldownStates(ctx context.Context) error {
 		}
 	}
 	m.mu.Unlock()
+
+	// Restore antigravity quota summary hints outside the manager lock since
+	// SetAntigravityQuotaSummary uses its own sync.Map (or Home KV). Only hints
+	// within the TTL window are rehydrated; stale ones are dropped so the
+	// periodic refresh repopulates them naturally.
+	for _, record := range quotaSummaryRecords {
+		hint := *record.AntigravityQuotaSummary
+		if !hint.UpdatedAt.IsZero() && now.Sub(hint.UpdatedAt) > antigravityQuotaSummaryTTL {
+			continue
+		}
+		SetAntigravityQuotaSummary(strings.TrimSpace(record.AuthID), hint)
+	}
 
 	if m.scheduler != nil {
 		for _, snapshot := range snapshotsByID {
@@ -626,10 +643,44 @@ func (m *Manager) cooldownStateRecordsForAuthLocked(auth *Auth, now time.Time) [
 			records = append(records, record)
 		}
 	}
+	if record, ok := antigravityQuotaSummaryCooldownRecord(auth, now); ok {
+		records = append(records, record)
+	}
 	sort.Slice(records, func(i, j int) bool {
 		return records[i].Model < records[j].Model
 	})
 	return records
+}
+
+// antigravityQuotaSummaryCooldownRecord builds an auth-level cooldown record
+// carrying the current antigravity quota summary hint so proactive skipping
+// survives restarts. Returns false when the auth is not antigravity, has no
+// stored hint, or the hint has no active depletion.
+func antigravityQuotaSummaryCooldownRecord(auth *Auth, now time.Time) (CooldownStateRecord, bool) {
+	if auth == nil || !strings.EqualFold(strings.TrimSpace(auth.Provider), "antigravity") {
+		return CooldownStateRecord{}, false
+	}
+	hint, ok := GetAntigravityQuotaSummary(auth.ID)
+	if !ok || !HintHasActiveDepletion(hint, now) {
+		return CooldownStateRecord{}, false
+	}
+	var latestDeadline time.Time
+	for _, deadline := range hint.ModelDepletion {
+		if deadline.After(latestDeadline) {
+			latestDeadline = deadline
+		}
+	}
+	hintCopy := hint
+	return CooldownStateRecord{
+		Provider:                strings.TrimSpace(auth.Provider),
+		AuthID:                  auth.ID,
+		AuthFile:                cooldownAuthFile(auth),
+		Status:                  "cooling",
+		NextRetryAfter:          latestDeadline,
+		Reason:                  "antigravity_quota_summary",
+		UpdatedAt:               hint.UpdatedAt,
+		AntigravityQuotaSummary: &hintCopy,
+	}, true
 }
 
 func cooldownStateRecordsEqual(a, b []CooldownStateRecord) bool {
@@ -656,7 +707,10 @@ func cooldownStateRecordEqual(a, b CooldownStateRecord) bool {
 		!cooldownQuotaEqual(a.Quota, b.Quota) {
 		return false
 	}
-	return cooldownErrorEqual(a.LastError, b.LastError)
+	if !cooldownErrorEqual(a.LastError, b.LastError) {
+		return false
+	}
+	return antigravityQuotaSummaryEqual(a.AntigravityQuotaSummary, b.AntigravityQuotaSummary)
 }
 
 func cooldownQuotaEqual(a, b QuotaState) bool {
@@ -674,6 +728,25 @@ func cooldownErrorEqual(a, b *Error) bool {
 		a.Message == b.Message &&
 		a.Retryable == b.Retryable &&
 		a.HTTPStatus == b.HTTPStatus
+}
+
+func antigravityQuotaSummaryEqual(a, b *AntigravityQuotaSummaryHint) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if !a.UpdatedAt.Equal(b.UpdatedAt) {
+		return false
+	}
+	if len(a.ModelDepletion) != len(b.ModelDepletion) {
+		return false
+	}
+	for key, aDeadline := range a.ModelDepletion {
+		bDeadline, ok := b.ModelDepletion[key]
+		if !ok || !aDeadline.Equal(bDeadline) {
+			return false
+		}
+	}
+	return len(a.Groups) == len(b.Groups)
 }
 
 func authCooldownStateRecord(auth *Auth, now time.Time) (CooldownStateRecord, bool) {

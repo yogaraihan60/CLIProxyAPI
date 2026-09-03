@@ -211,6 +211,7 @@ quota-exceeded:
   switch-project: true # Whether to automatically switch to another project when a quota is exceeded
   switch-preview-model: true # Whether to automatically switch to a preview model when a quota is exceeded
   antigravity-credits: true # Whether to use credits as last-resort fallback when all free-tier auths are exhausted for Claude models
+  antigravity-quota-skip: true # Whether to proactively skip antigravity auths whose upstream quota summary reports a fully depleted bucket for the requested model (avoids retrying depleted accounts)
 
 # Routing strategy for selecting credentials when multiple match.
 routing:
@@ -643,6 +644,14 @@ nonstream-keepalive-interval: 0
 #       # Values starting with "$" dynamically copy the header value from downstream client requests.
 #       # If the client did not send the specified header, the header is omitted.
 #       # X-Claude-Code-Session-Id: "$ABC" # copies client's "ABC" header
+#     # Inbound client request headers are forwarded to this upstream provider, in
+#     # addition to the headers above. Hop-by-hop, auth, and transport headers
+#     # (Authorization, Cookie, X-Api-Key, X-Goog-Api-Key, Content-Type,
+#     # Content-Length, Host, Connection, etc.) are stripped. Headers set here or
+#     # by the executor always win over client headers, so X-Session-Hash and
+#     # similar custom headers pass through unless overridden. This applies only
+#     # to OpenAI-compatible (API-key-only) providers; OAuth-based providers are
+#     # unaffected.
 #     api-key-entries:
 #       - api-key: "sk-or-v1-...b780"
 #         weight: 5 # optional: weighted-round-robin share; omitted defaults to 1; maximum 1,000,000

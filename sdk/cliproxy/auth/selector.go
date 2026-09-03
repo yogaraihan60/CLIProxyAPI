@@ -808,6 +808,13 @@ func isAuthBlockedForModel(auth *Auth, model string, now time.Time) (bool, block
 	if auth.Quota.Exceeded && auth.Quota.Reason == "credential_quota" && auth.Quota.NextRecoverAt.After(now) {
 		return true, blockReasonCooldown, auth.Quota.NextRecoverAt
 	}
+	// Proactively skip antigravity auths whose upstream quota summary reports a
+	// fully depleted bucket for the requested model.
+	if model != "" {
+		if blocked, next := antigravityQuotaSummaryBlocked(auth, model, now); blocked {
+			return true, blockReasonCooldown, next
+		}
+	}
 	if model != "" {
 		if len(auth.ModelStates) > 0 {
 			modelKey := canonicalModelKey(model)

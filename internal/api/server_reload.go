@@ -101,6 +101,9 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 	if oldCfg == nil || oldCfg.DisableCooling != cfg.DisableCooling {
 		auth.SetQuotaCooldownDisabled(cfg.DisableCooling)
 	}
+	if oldCfg == nil || oldCfg.QuotaExceeded.AntigravityQuotaSkipEnabled() != cfg.QuotaExceeded.AntigravityQuotaSkipEnabled() {
+		auth.SetAntigravityQuotaSkipEnabled(cfg.QuotaExceeded.AntigravityQuotaSkipEnabled())
+	}
 	if oldCfg == nil || oldCfg.TransientErrorCooldownSeconds != cfg.TransientErrorCooldownSeconds {
 		auth.SetTransientErrorCooldownSeconds(cfg.TransientErrorCooldownSeconds)
 	}

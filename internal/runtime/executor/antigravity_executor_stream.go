@@ -153,6 +153,7 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 				if useCredits && antigravityHasExplicitCreditsBalanceExhaustedReason(bodyBytes) && !antigravityCoolingDisabled(auth, e.cfg) {
 					markAntigravityCreditsPermanentlyDisabled(auth)
 				}
+				e.markAntigravityQuotaExhausted(ctx, auth)
 				// No credits logic - just fall through to error return below
 			}
 		}
@@ -161,7 +162,7 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 			// Report the upstream failure rather than the cleanup failure.
 			logAntigravityReasoningReplayDegraded(replayScope, "invalidate", errClear)
 		}
-		err = newAntigravityStatusErr(httpResp.StatusCode, bodyBytes)
+		err = e.withAntigravityQuotaRetryAfter(auth, baseModel, newAntigravityStatusErr(httpResp.StatusCode, bodyBytes))
 		return nil, err
 	}
 

@@ -229,6 +229,17 @@ type QuotaExceeded struct {
 	// When all free-tier auths are exhausted (429/503), the conductor retries with
 	// an auth that has available Google One AI credits.
 	AntigravityCredits bool `yaml:"antigravity-credits" json:"antigravity-credits"`
+
+	// AntigravityQuotaSkip proactively skips antigravity auths whose upstream quota
+	// summary reports a fully depleted bucket for the requested model, instead of
+	// discovering depletion through failed requests. Nil (unset) defaults to enabled.
+	AntigravityQuotaSkip *bool `yaml:"antigravity-quota-skip,omitempty" json:"antigravity-quota-skip,omitempty"`
+}
+
+// AntigravityQuotaSkipEnabled reports whether proactive antigravity quota skipping
+// is enabled. It defaults to true when the configuration key is absent.
+func (q QuotaExceeded) AntigravityQuotaSkipEnabled() bool {
+	return q.AntigravityQuotaSkip == nil || *q.AntigravityQuotaSkip
 }
 
 // RoutingConfig configures how credentials are selected for requests.
