@@ -182,7 +182,7 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 		if httpResp.StatusCode == http.StatusForbidden {
 			e.applyAntigravityForbiddenState(e.cfg, auth, bodyBytes)
 		}
-		err = newAntigravityStatusErrWithHeaders(httpResp.StatusCode, httpResp.Header, bodyBytes)
+		err = e.withAntigravityQuotaRetryAfter(auth, baseModel, newAntigravityStatusErrWithHeaders(httpResp.StatusCode, httpResp.Header, bodyBytes))
 		return nil, err
 	}
 	if len(replayRequestPayload) == 0 {

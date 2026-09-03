@@ -457,6 +457,9 @@ func (e *AntigravityExecutor) applyAntigravity429State(ctx context.Context, auth
 		if useCredits && antigravityHasExplicitCreditsBalanceExhaustedReason(bodyBytes) && !antigravityCoolingDisabled(auth, cfg) {
 			markAntigravityCreditsPermanentlyDisabled(auth)
 		}
+		// Synchronously refresh the upstream quota-summary hint so the
+		// retry-after injection that follows reads the real bucket deadline.
+		e.markAntigravityQuotaExhausted(ctx, auth)
 	}
 	return nil
 }

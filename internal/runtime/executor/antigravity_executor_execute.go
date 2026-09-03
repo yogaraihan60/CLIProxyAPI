@@ -179,7 +179,7 @@ func (e *AntigravityExecutor) Execute(ctx context.Context, auth *cliproxyauth.Au
 		if httpResp.StatusCode == http.StatusForbidden {
 			e.applyAntigravityForbiddenState(e.cfg, auth, bodyBytes)
 		}
-		err = newAntigravityStatusErrWithHeaders(httpResp.StatusCode, httpResp.Header, bodyBytes)
+		err = e.withAntigravityQuotaRetryAfter(auth, baseModel, newAntigravityStatusErrWithHeaders(httpResp.StatusCode, httpResp.Header, bodyBytes))
 		return resp, err
 	}
 
@@ -412,7 +412,7 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 		if httpResp.StatusCode == http.StatusForbidden {
 			e.applyAntigravityForbiddenState(e.cfg, auth, bodyBytes)
 		}
-		err = newAntigravityStatusErrWithHeaders(httpResp.StatusCode, httpResp.Header, bodyBytes)
+		err = e.withAntigravityQuotaRetryAfter(auth, baseModel, newAntigravityStatusErrWithHeaders(httpResp.StatusCode, httpResp.Header, bodyBytes))
 		return resp, err
 	}
 

@@ -1328,6 +1328,13 @@ func isAuthBlockedForModelForRequest(ctx context.Context, auth *Auth, model stri
 		}
 		return true, blockReasonOther, credNext
 	}
+	// Proactively skip antigravity auths whose upstream quota summary reports a
+	// fully depleted bucket for the requested model.
+	if model != "" {
+		if blocked, next := antigravityQuotaSummaryBlocked(auth, model, now); blocked {
+			return true, blockReasonCooldown, next
+		}
+	}
 	unavailable := codexRefreshUnavailableForRequest(ctx, auth, now, clientHeaders...)
 	if model != "" {
 		if len(auth.ModelStates) > 0 {

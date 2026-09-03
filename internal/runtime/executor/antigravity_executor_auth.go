@@ -136,6 +136,7 @@ func (e *AntigravityExecutor) ensureAccessTokenWithOptions(ctx context.Context, 
 		if discoverProject {
 			e.maybeRefreshAntigravityCreditsHint(ctx, auth, accessToken)
 		}
+		e.maybeRefreshAntigravityQuotaSummary(ctx, auth, accessToken)
 		return accessToken, nil, false, nil
 	}
 	var refreshedLocal bool
@@ -157,6 +158,7 @@ func (e *AntigravityExecutor) ensureAccessTokenWithOptions(ctx context.Context, 
 			if discoverProject {
 				e.maybeRefreshAntigravityCreditsHint(callCtx, refreshed, token)
 			}
+			e.maybeRefreshAntigravityQuotaSummary(callCtx, refreshed, token)
 			return refreshed, nil
 		}
 		refreshed, errToken := e.refreshTokenWithOptions(refreshCtx, latest.Clone(), callCtx, discoverProject)
@@ -174,6 +176,7 @@ func (e *AntigravityExecutor) ensureAccessTokenWithOptions(ctx context.Context, 
 		if discoverProject {
 			e.maybeRefreshAntigravityCreditsHint(ctx, auth, accessToken)
 		}
+		e.maybeRefreshAntigravityQuotaSummary(ctx, auth, accessToken)
 		return accessToken, nil, false, nil
 	}
 	token := metaStringValue(updated.Metadata, "access_token")
@@ -183,6 +186,7 @@ func (e *AntigravityExecutor) ensureAccessTokenWithOptions(ctx context.Context, 
 	if discoverProject && !refreshedLocal && !refreshedViaHome {
 		e.maybeRefreshAntigravityCreditsHint(ctx, updated, token)
 	}
+	e.maybeRefreshAntigravityQuotaSummary(ctx, updated, token)
 	return token, updated, refreshedLocal, nil
 }
 
@@ -242,6 +246,7 @@ func (e *AntigravityExecutor) refreshTokenWithOptions(ctx context.Context, auth 
 		}
 		e.queueAntigravityCreditsRefresh(ctx, auth, tokenResp.AccessToken, 0)
 	}
+	e.maybeRefreshAntigravityQuotaSummary(ctx, auth, tokenResp.AccessToken)
 	return auth, nil
 }
 

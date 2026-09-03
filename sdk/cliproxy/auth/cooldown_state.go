@@ -79,6 +79,11 @@ type CooldownStateRecord struct {
 	// IndependentNonQuotaCooldownUntil persists NonQuotaCooldownUntil for
 	// IndependentState beneath a credential_quota wrap.
 	IndependentNonQuotaCooldownUntil time.Time `json:"independent_non_quota_cooldown_until,omitempty"`
+
+	// AntigravityQuotaSummary carries the upstream quota summary hint for
+	// antigravity auths so proactive skipping survives restarts. Only present
+	// on auth-level records (Model == "") for antigravity providers.
+	AntigravityQuotaSummary *AntigravityQuotaSummaryHint `json:"antigravity_quota_summary,omitempty"`
 }
 
 // CooldownStateStore persists runtime cooldown state independently from auth tokens.
